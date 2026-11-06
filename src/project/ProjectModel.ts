@@ -276,3 +276,122 @@ export function doublePattern(project: Project, patternId: string): Project {
     }
   })
 }
+
+// ---------------------------------------------------------------- step params
+
+/** Per-step fields editable from the inspector or the MPK knobs. */
+export type StepPatch = Partial<
+  Pick<Step, 'velocity' | 'probability' | 'ratchet' | 'microtiming' | 'accent' | 'gate'>
+>
+
+export const MAX_RATCHET = 4
+
+/** Clamp a step patch to valid ranges. */
+export function normalizeStepPatch(patch: StepPatch): StepPatch {
+  const out: StepPatch = { ...patch }
+  if (out.velocity !== undefined) out.velocity = clamp(out.velocity, 0.05, 1)
+  if (out.probability !== undefined) out.probability = clamp(out.probability, 0, 1)
+  if (out.ratchet !== undefined) out.ratchet = clamp(Math.round(out.ratchet), 1, MAX_RATCHET)
+  if (out.microtiming !== undefined) out.microtiming = clamp(out.microtiming, -0.5, 0.5)
+  if (out.gate !== undefined) out.gate = clamp(out.gate, 0.05, 16)
+  return out
+}
+
+export function updateStep(
+  project: Project,
+  patternId: string,
+  part: PartIndex,
+  stepIndex: number,
+  patch: StepPatch,
+): Project {
+  return updatePattern(project, patternId, (pattern) => {
+    const track = pattern.tracks[part]!
+    const step = track.steps[stepIndex]
+    if (!step) return pattern
+    const steps = track.steps.slice()
+    steps[stepIndex] = { ...step, ...normalizeStepPatch(patch) }
+    const tracks = pattern.tracks.slice()
+    tracks[part] = { steps }
+    return { ...pattern, tracks }
+  })
+}
+
+/** Swing 0..1: delays every second 16th by up to half a step (50%..75% swing). */
+export function setSwing(project: Project, swing: number): Project {
+  if (!Number.isFinite(swing)) return project
+  return { ...project, swing: Math.round(clamp(swing, 0, 1) * 100) / 100 }
+}
+
+// ---------------------------------------------------------------- patterns
+
+export const MAX_PATTERNS = 64
+
+function nextPatternName(project: Project): string {
+  const used = new Set(project.patterns.map((p) => p.name))
+  for (let n = project.patterns.length + 1; ; n++) {
+    if (!used.has(`Pattern ${n}`)) return `Pattern ${n}`
+  }
+}
+
+/** Make a pattern active (immediately; queuing during playback is the app's job). */
+export function selectPattern(project: Project, patternId: string): Project {
+  if (!project.patterns.some((p) => p.id === patternId)) return project
+  return { ...project, activePatternId: patternId }
+}
+
+/** Add an empty 1-bar pattern after the active one and make it active. */
+export function addPattern(project: Project): Project {
+  if (project.patterns.length >= MAX_PATTERNS) return project
+  const pattern = createPattern(nextPatternName(project))
+  const at = project.patterns.findIndex((p) => p.id === project.activePatternId) + 1
+  const patterns = [...project.patterns.slice(0, at), pattern, ...project.patterns.slice(at)]
+  return { ...project, patterns, activePatternId: pattern.id }
+}
+
+/** Copy a pattern (all parts, all steps) right after it and make the copy active. */
+export function duplicatePattern(project: Project, patternId: string): Project {
+  if (project.patterns.length >= MAX_PATTERNS) return project
+  const index = project.patterns.findIndex((p) => p.id === patternId)
+  const source = project.patterns[index]
+  if (!source) return project
+  const copy: Pattern = {
+    ...source,
+    id: createId('pat'),
+    name: `${source.name} copy`,
+    tracks: source.tracks.map((t) => ({
+      steps: t.steps.map((s) => ({ ...s, notes: [...s.notes] })),
+    })),
+  }
+  const patterns = [
+    ...project.patterns.slice(0, index + 1),
+    copy,
+    ...project.patterns.slice(index + 1),
+  ]
+  return { ...project, patterns, activePatternId: copy.id }
+}
+
+/** Delete a pattern; the last remaining pattern cannot be deleted. */
+export function deletePattern(project: Project, patternId: string): Project {
+  if (project.patterns.length <= 1) return project
+  const index = project.patterns.findIndex((p) => p.id === patternId)
+  if (index < 0) return project
+  const patterns = project.patterns.filter((p) => p.id !== patternId)
+  const activePatternId =
+    project.activePatternId === patternId
+      ? patterns[Math.min(index, patterns.length - 1)]!.id
+      : project.activePatternId
+  return { ...project, patterns, activePatternId }
+}
+
+export function renamePattern(project: Project, patternId: string, name: string): Project {
+  const trimmed = name.trim().slice(0, 32)
+  if (!trimmed) return project
+  return updatePattern(project, patternId, (p) => ({ ...p, name: trimmed }))
+}
+
+/** Id of the pattern `offset` places from `patternId`, wrapping around. */
+export function neighbourPatternId(project: Project, patternId: string, offset: number): string {
+  const n = project.patterns.length
+  const index = project.patterns.findIndex((p) => p.id === patternId)
+  return project.patterns[(((index + offset) % n) + n) % n]!.id
+}

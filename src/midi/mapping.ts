@@ -26,6 +26,10 @@ export type ButtonId =
   | 'btnBarPrev'
   | 'btnBarNext'
   | 'btnClearPart'
+  | 'btnAccent'
+  | 'btnPatPrev'
+  | 'btnPatNext'
+  | 'btnPatDup'
 export type LearnTargetId = PadId | KnobId | ButtonId | 'stepKeys' | 'joyX' | 'joyY' | 'keyboard'
 
 export type LearnTargetKind = 'pad' | 'knob' | 'button' | 'stepkeys' | 'joystick' | 'keyboard'
@@ -58,6 +62,20 @@ export const LEARN_TARGETS: readonly LearnTarget[] = [
   { id: 'btnBarPrev', label: 'Bar −', kind: 'button', hint: 'Edit the previous bar' },
   { id: 'btnBarNext', label: 'Bar +', kind: 'button', hint: 'Edit the next bar' },
   { id: 'btnClearPart', label: 'Clear part', kind: 'button', hint: 'Clear the selected part' },
+  { id: 'btnAccent', label: 'Accent', kind: 'button', hint: 'Toggle accent on the focused step' },
+  {
+    id: 'btnPatPrev',
+    label: 'Pattern −',
+    kind: 'button',
+    hint: 'Previous pattern (at loop end while playing)',
+  },
+  {
+    id: 'btnPatNext',
+    label: 'Pattern +',
+    kind: 'button',
+    hint: 'Next pattern (at loop end while playing)',
+  },
+  { id: 'btnPatDup', label: 'Duplicate pattern', kind: 'button', hint: 'Copy this pattern' },
   {
     id: 'stepKeys',
     label: 'Step keys',

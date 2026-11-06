@@ -1,7 +1,15 @@
 import { createStore } from 'zustand/vanilla'
 import {
+  addPattern,
   clearPattern,
   clearTrack,
+  deletePattern,
+  duplicatePattern,
+  renamePattern,
+  selectPattern,
+  setSwing,
+  updateStep,
+  type StepPatch,
   createProject,
   doublePattern,
   setBpm,
@@ -41,6 +49,14 @@ export interface ProjectState {
   setStepVelocity: (part: PartIndex, stepIndex: number, velocity: number) => void
   clearPattern: () => void
   doublePattern: () => void
+  setSwing: (swing: number) => void
+  updateStep: (part: PartIndex, stepIndex: number, patch: StepPatch) => void
+  /** Switch pattern now (the app queues switches during playback). */
+  selectPattern: (patternId: string) => void
+  addPattern: () => void
+  duplicatePattern: () => void
+  deletePattern: () => void
+  renamePattern: (patternId: string, name: string) => void
 }
 
 export function createProjectStore(initial: Project = createProject()) {
@@ -91,6 +107,26 @@ export function createProjectStore(initial: Project = createProject()) {
       const { project } = get()
       set({ project: clearPattern(project, project.activePatternId) })
     },
+    setSwing: (swing) => set({ project: setSwing(get().project, swing) }),
+    updateStep: (part, stepIndex, patch) => {
+      const { project } = get()
+      set({ project: updateStep(project, project.activePatternId, part, stepIndex, patch) })
+    },
+    selectPattern: (patternId) => {
+      const project = selectPattern(get().project, patternId)
+      if (project !== get().project) set({ project, visibleBar: 0 })
+    },
+    addPattern: () => set({ project: addPattern(get().project), visibleBar: 0 }),
+    duplicatePattern: () => {
+      const { project } = get()
+      set({ project: duplicatePattern(project, project.activePatternId), visibleBar: 0 })
+    },
+    deletePattern: () => {
+      const { project } = get()
+      set({ project: deletePattern(project, project.activePatternId), visibleBar: 0 })
+    },
+    renamePattern: (patternId, name) =>
+      set({ project: renamePattern(get().project, patternId, name) }),
     doublePattern: () => {
       const { project } = get()
       set({ project: doublePattern(project, project.activePatternId) })

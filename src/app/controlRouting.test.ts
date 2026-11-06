@@ -16,6 +16,12 @@ const mappings: MidiMappings = {
   btnBarNext: { kind: 'note', channel: 10, note: 47 },
   btnClearPart: { kind: 'note', channel: 10, note: 48 },
   btnPanic: { kind: 'program', channel: 10, program: 7 },
+  btnAccent: { kind: 'note', channel: 10, note: 49 },
+  btnPatPrev: { kind: 'note', channel: 10, note: 50 },
+  btnPatNext: { kind: 'note', channel: 10, note: 51 },
+  btnPatDup: { kind: 'note', channel: 10, note: 52 },
+  knob4: { kind: 'cc', channel: 1, controller: 73 },
+  knob5: { kind: 'cc', channel: 1, controller: 74 },
   knob1: { kind: 'cc', channel: 1, controller: 70 },
   knob2: { kind: 'cc', channel: 1, controller: 71 },
   knob3: { kind: 'cc', channel: 1, controller: 72 },
@@ -94,14 +100,16 @@ describe('keys', () => {
     expect(route([0x90, 70, 80])).toEqual([{ type: 'keyOn', note: 70, velocity: 80 }])
   })
 
-  it('step mode: the 16 step keys toggle steps on the visible bar with key velocity', () => {
+  it('step mode: step keys press/release the step on the visible bar', () => {
     expect(route([0x90, 48, 100], { keyMode: 'step' })).toEqual([
-      { type: 'toggleStep', part: 2, step: 0, velocity: 100 },
+      { type: 'stepKeyDown', part: 2, step: 0, velocity: 100 },
     ])
     expect(route([0x90, 63, 30], { keyMode: 'step', visibleBar: 1 })).toEqual([
-      { type: 'toggleStep', part: 2, step: 31, velocity: 30 },
+      { type: 'stepKeyDown', part: 2, step: 31, velocity: 30 },
     ])
-    expect(route([0x80, 48, 0], { keyMode: 'step' })).toEqual([])
+    expect(route([0x80, 48, 0], { keyMode: 'step' })).toEqual([
+      { type: 'stepKeyUp', part: 2, step: 0 },
+    ])
   })
 
   it('step mode: keys outside the 16 still play', () => {
@@ -139,5 +147,21 @@ describe('knobs', () => {
       'select',
       'select',
     ])
+  })
+})
+
+describe('groove and pattern controls', () => {
+  it('pattern and accent buttons', () => {
+    expect(route([0x99, 49, 100])).toEqual([{ type: 'toggleAccent' }])
+    expect(route([0x99, 50, 100])).toEqual([{ type: 'stepPattern', offset: -1 }])
+    expect(route([0x99, 51, 100])).toEqual([{ type: 'stepPattern', offset: 1 }])
+    expect(route([0x99, 52, 100])).toEqual([{ type: 'duplicatePattern' }])
+  })
+
+  it('default K4 edits step probability and K5 sets swing', () => {
+    expect(route([0xb0, 73, 127])).toEqual([
+      { type: 'editFocusedStep', job: 'stepProbability', value: 1 },
+    ])
+    expect(route([0xb0, 74, 0])).toEqual([{ type: 'setSwing', swing: 0 }])
   })
 })

@@ -1,4 +1,4 @@
-import type { KnobJob, KnobJobs } from '../midi/knobJobs'
+import type { KnobJob, KnobJobs, StepKnobJob } from '../midi/knobJobs'
 import type { ControlBinding, KnobId, LearnTargetId, MidiMappings } from '../midi/mapping'
 import type { MidiEvent } from '../midi/messages'
 import { STEPS_PER_BAR, type PartIndex } from '../project/types'
@@ -28,7 +28,16 @@ export type AppAction =
   | { type: 'keyOff'; note: number }
   | { type: 'toggleMute'; part: PartIndex }
   | { type: 'selectPart'; part: PartIndex }
-  | { type: 'toggleStep'; part: PartIndex; step: number; velocity: number }
+  /** Step key pressed: focus the step; a tap (no knob turned) toggles it on release. */
+  | { type: 'stepKeyDown'; part: PartIndex; step: number; velocity: number }
+  | { type: 'stepKeyUp'; part: PartIndex; step: number }
+  /** Knob edit of the focused step; `value` is 0..1 from the knob. */
+  | { type: 'editFocusedStep'; job: StepKnobJob; value: number }
+  | { type: 'toggleAccent' }
+  | { type: 'setSwing'; swing: number }
+  /** Change pattern by offset (queued to loop end while playing). */
+  | { type: 'stepPattern'; offset: number }
+  | { type: 'duplicatePattern' }
   | { type: 'togglePlay' }
   | { type: 'panic' }
   | { type: 'setPadMode'; mode: PadMode }
@@ -69,11 +78,12 @@ export function routeControl(
 
   // Step keys are also keyboard keys; the keys mode decides which they are.
   if (targets.includes('stepKeys') && state.keyMode === 'step') {
-    if (e.type === 'noteon') {
-      const binding = state.mappings.stepKeys as Extract<ControlBinding, { kind: 'note-range' }>
-      const step = state.visibleBar * STEPS_PER_BAR + (e.note - binding.note)
-      actions.push({ type: 'toggleStep', part: state.selectedPart, step, velocity: e.velocity })
-    }
+    if (e.type !== 'noteon' && e.type !== 'noteoff') return actions
+    const binding = state.mappings.stepKeys as Extract<ControlBinding, { kind: 'note-range' }>
+    const step = state.visibleBar * STEPS_PER_BAR + (e.note - binding.note)
+    const part = state.selectedPart
+    if (e.type === 'noteon') actions.push({ type: 'stepKeyDown', part, step, velocity: e.velocity })
+    else if (e.type === 'noteoff') actions.push({ type: 'stepKeyUp', part, step })
     return actions
   }
   if (targets.includes('stepKeys') || targets.includes('keyboard')) {
@@ -133,6 +143,18 @@ export function routeControl(
       case 'btnClearPart':
         actions.push({ type: 'clearPart', part: state.selectedPart })
         break
+      case 'btnAccent':
+        actions.push({ type: 'toggleAccent' })
+        break
+      case 'btnPatPrev':
+        actions.push({ type: 'stepPattern', offset: -1 })
+        break
+      case 'btnPatNext':
+        actions.push({ type: 'stepPattern', offset: 1 })
+        break
+      case 'btnPatDup':
+        actions.push({ type: 'duplicatePattern' })
+        break
     }
   }
   return actions
@@ -161,5 +183,12 @@ function knobAction(job: KnobJob, value: number, state: RoutingState): AppAction
       return { type: 'setTempo', bpm: Math.round(60 + v * 140) }
     case 'masterVolume':
       return { type: 'setMasterVolume', volume: v }
+    case 'swing':
+      return { type: 'setSwing', swing: v }
+    case 'stepVelocity':
+    case 'stepProbability':
+    case 'stepRatchet':
+    case 'stepMicro':
+      return { type: 'editFocusedStep', job, value: v }
   }
 }

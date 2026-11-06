@@ -14,7 +14,6 @@ interface Props {
 }
 
 export function TransportBar({ view, onViewChange }: Props) {
-  const ts = useProjectStore((s) => s.project.timeSignature)
   const playing = useTransport((s) => s.playing)
 
   return (
@@ -32,9 +31,7 @@ export function TransportBar({ view, onViewChange }: Props) {
         <span className="label">BPM</span>
         <BpmInput />
         <TapTempo />
-        <span className="value lcd" title="Time signature">
-          {ts.beatsPerBar}/{ts.beatUnit}
-        </span>
+        <SwingControl />
       </div>
       <MasterSection />
       <nav className="view-tabs">
@@ -118,5 +115,28 @@ function TapTempo() {
     <button className={`tap ${flash ? 'flash' : ''}`} onPointerDown={tap} title="Tap tempo">
       TAP
     </button>
+  )
+}
+
+/** Swing: 0 = straight (50%), 1 = heavy shuffle (75%). Double-click resets. */
+function SwingControl() {
+  const swing = useProjectStore((s) => s.project.swing)
+  return (
+    <label
+      className="control compact swing"
+      title="Swing: delays every second 16th (double-click to reset)"
+      onDoubleClick={() => projectStore.getState().setSwing(0)}
+    >
+      <span className="label">Swing</span>
+      <input
+        type="range"
+        min={0}
+        max={1}
+        step={0.01}
+        value={swing}
+        onChange={(e) => projectStore.getState().setSwing(Number(e.target.value))}
+      />
+      <span className="lcd control-value">{Math.round(50 + swing * 25)}%</span>
+    </label>
   )
 }

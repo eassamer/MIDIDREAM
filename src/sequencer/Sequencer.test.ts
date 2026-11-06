@@ -30,7 +30,11 @@ function setup(edit: (p: Project) => Project = (p) => p, options = {}) {
   }
   const seq = new Sequencer(
     { now: () => now },
-    { getPattern: () => getActivePattern(project), getBpm: () => project.bpm },
+    {
+      getPattern: () => getActivePattern(project),
+      getBpm: () => project.bpm,
+      getSwing: () => project.swing,
+    },
     sink,
     // Manual timer: tests drive tick() themselves.
     { timer: { set: () => 1, clear: () => {} }, lookahead: 0.1, startDelay: 0.05, ...options },
@@ -201,5 +205,116 @@ describe('Sequencer', () => {
     expect(t.seq.stepAt(0.05)?.step).toBe(0)
     expect(t.seq.stepAt(0.3)?.step).toBe(2)
     expect(t.seq.stepAt(1.0)?.step).toBe(7)
+  })
+})
+
+import { updateStep, setSwing, addPattern, selectPattern } from '../project/ProjectModel'
+import { ACCENT_BOOST } from './Sequencer'
+
+describe('groove', () => {
+  for (const bpm of [90, 120, 174]) {
+    it(`swing delays only odd 16ths, proportionally, at ${bpm} BPM`, () => {
+      const t = setup((p) => setSwing({ ...on(0, 1)(on(0, 0)(p)), bpm }, 1))
+      t.seq.start()
+      t.advanceTo(1)
+      const d = stepDuration(bpm)
+      expect(t.played[0]!.when).toBeCloseTo(0.05, 9)
+      expect(t.played[1]!.when).toBeCloseTo(0.05 + d + 0.5 * d, 9)
+    })
+
+    it(`ratchets split the step evenly at ${bpm} BPM`, () => {
+      const t = setup((p) => {
+        const q = on(0, 0)({ ...p, bpm })
+        return updateStep(q, q.activePatternId, 0, 0, { ratchet: 4 })
+      })
+      t.seq.start()
+      t.advanceTo(0.1)
+      const d = stepDuration(bpm)
+      expect(t.played.map((n) => n.when)).toEqual(
+        [0, 1, 2, 3].map((k) => expect.closeTo(0.05 + (k * d) / 4, 9)),
+      )
+      t.played.forEach((n) => expect(n.duration).toBeCloseTo(d / 4, 9))
+    })
+  }
+
+  it('microtiming shifts a step by a fraction of a step', () => {
+    const t = setup((p) => {
+      const q = on(0, 4)(p)
+      return updateStep(q, q.activePatternId, 0, 4, { microtiming: -0.25 })
+    })
+    t.seq.start()
+    t.advanceTo(1)
+    expect(t.played[0]!.when).toBeCloseTo(0.05 + 4 * 0.125 - 0.25 * 0.125, 9)
+  })
+
+  it('accent boosts velocity (capped at 127)', () => {
+    const t = setup((p) => {
+      let q = on(0, 0)(on(1, 0)(p))
+      q = updateStep(q, q.activePatternId, 0, 0, { accent: true, velocity: 0.5 })
+      return updateStep(q, q.activePatternId, 1, 0, { accent: true, velocity: 1 })
+    })
+    t.seq.start()
+    t.advanceTo(0.1)
+    expect(t.played.map((n) => n.velocity)).toEqual([Math.round((0.5 + ACCENT_BOOST) * 127), 127])
+  })
+
+  it('probability uses the random source', () => {
+    const rolls = [0.1, 0.9, 0.49, 0.5]
+    const t = setup(
+      (p) => {
+        let q = p
+        for (const i of [0, 1, 2, 3]) {
+          q = on(0, i)(q)
+          q = updateStep(q, q.activePatternId, 0, i, { probability: 0.5 })
+        }
+        return q
+      },
+      { random: () => rolls.shift()! },
+    )
+    t.seq.start()
+    t.advanceTo(0.5)
+    expect(t.played.map((n) => Math.round((n.when - 0.05) / 0.125))).toEqual([0, 2])
+  })
+})
+
+describe('pattern switching', () => {
+  it('calls onPatternEnd exactly at the loop boundary', () => {
+    let ends = 0
+    let project = on(0, 0)(createProject())
+    const played: number[] = []
+    let now = 0
+    const seq = new Sequencer(
+      { now: () => now },
+      {
+        getPattern: () => getActivePattern(project),
+        getBpm: () => 120,
+        onPatternEnd: () => {
+          ends++
+          // Switch to a second pattern with a hit on step 8.
+          if (ends === 1) {
+            project = addPattern(project)
+            project = on(0, 8)(project)
+          }
+        },
+      },
+      {
+        playNote: (_p, _v, _n, when) => played.push(when),
+        cancelAfter: () => {},
+        releaseAll: () => {},
+      },
+      { timer: { set: () => 1, clear: () => {} }, lookahead: 0.1, startDelay: 0.05 },
+    )
+    seq.start()
+    while (now < 5.1) {
+      now += 0.025
+      seq.tick()
+    }
+    // Bar 1: original pattern step 0 at 0.05. Bar 2+: new pattern step 8.
+    expect(played[0]).toBeCloseTo(0.05, 9)
+    expect(played[1]).toBeCloseTo(2.05 + 8 * 0.125, 9)
+    expect(played[2]).toBeCloseTo(4.05 + 8 * 0.125, 9)
+    expect(played).toHaveLength(3)
+    expect(ends).toBe(2)
+    void selectPattern
   })
 })

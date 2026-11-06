@@ -7,6 +7,9 @@ import { useTransport } from '../../state/transportStore'
 import { useControl } from '../../state/controlStore'
 import { useMidiStore } from '../../state/useMidiStore'
 import { noteName } from '../../midi/messages'
+import { stepEditor } from '../../app/wiring'
+import { PatternBar } from './PatternBar'
+import { StepInspector } from './StepInspector'
 
 export function StepGrid() {
   const project = useProjectStore((s) => s.project)
@@ -16,6 +19,8 @@ export function StepGrid() {
   const stepEntry = useControl((s) => s.keyMode === 'step')
   const stepKeys = useMidiStore((s) => s.mappings.stepKeys)
   const stepKeyBase = stepEntry && stepKeys?.kind === 'note-range' ? stepKeys.note : null
+  const focused = useControl((s) => s.focusedStep)
+  const focusedStep = focused && focused.part === selectedPart ? focused.step : null
   const { toggleStep, clearPart, clearPattern, doublePattern, setVisibleBar, setPatternLength } =
     projectStore.getState()
 
@@ -31,6 +36,7 @@ export function StepGrid() {
       aria-label="Step sequencer"
       style={{ '--part-color': part.color } as React.CSSProperties}
     >
+      <PatternBar />
       <div className="sequencer-toolbar">
         <span className="seq-title">
           {pattern.name} · <strong>{part.name}</strong>
@@ -87,19 +93,44 @@ export function StepGrid() {
             key={offset + i}
             className={`step ${step.active ? 'on' : ''} ${i % 4 === 0 ? 'beat' : ''} ${
               playhead === offset + i ? 'playhead' : ''
-            }`}
+            } ${focusedStep === offset + i ? 'focused' : ''}`}
             style={step.active ? { opacity: 0.35 + 0.65 * step.velocity } : undefined}
-            onClick={() => toggleStep(selectedPart, offset + i)}
+            onClick={() => {
+              toggleStep(selectedPart, offset + i)
+              stepEditor.setFocus({ part: selectedPart, step: offset + i })
+            }}
             aria-pressed={step.active}
             aria-label={`Step ${offset + i + 1}`}
           >
             <span>{i + 1}</span>
+            <StepBadges step={step} />
             {stepKeyBase !== null && <span className="step-key">{noteName(stepKeyBase + i)}</span>}
           </button>
         ))}
       </div>
       <VelocityLane part={selectedPart} steps={steps} offset={offset} />
+      <StepInspector />
     </section>
+  )
+}
+
+/** Small markers for the per-step groove settings. */
+function StepBadges({ step }: { step: Step }) {
+  return (
+    <>
+      {step.accent && <span className="badge accent" title="Accent" />}
+      {step.ratchet > 1 && <span className="badge ratchet">×{step.ratchet}</span>}
+      {step.probability < 1 && (
+        <span className="badge prob">{Math.round(step.probability * 100)}%</span>
+      )}
+      {step.microtiming !== 0 && (
+        <span
+          className="badge micro"
+          title={`Microtiming ${Math.round(step.microtiming * 100)}% of a step`}
+          style={{ left: `${50 + step.microtiming * 100}%` }}
+        />
+      )}
+    </>
   )
 }
 

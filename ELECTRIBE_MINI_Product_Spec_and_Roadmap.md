@@ -567,6 +567,46 @@ the next. Do not implement the entire product in one giant change.
 - **Next:** Milestone 4 --- swing, probability, ratchets, accent,
   microtiming, multiple patterns and switching, each with a MIDI control.
 
+**Milestone 4 --- implemented, awaiting hardware sign-off (2026-11-06).**
+
+- Sequencer groove: swing (every second 16th delayed by up to half a
+  step; shown as 50--75%), per-step probability (injected random source),
+  ratchets 1--4 (equal repeats inside the step), accent (+25% velocity,
+  capped), microtiming (±50% of a step). All are offsets from the audio
+  clock grid, so they scale with tempo; tested at 90, 120 and 174 BPM.
+- Patterns: add, duplicate (deep copy), delete (never the last), rename
+  (double-click), select. While playing, a change is queued and lands
+  exactly at the end of the current loop (`onPatternEnd` hook); stopping
+  with a change queued switches immediately; choosing the playing pattern
+  cancels the queue.
+- MIDI-first: step keys now work like hardware step buttons --- tap =
+  toggle on release, hold + turn a step knob = edit that step without
+  toggling; the last touched step stays focused for knobs and Accent.
+  New knob jobs: swing, step velocity / probability / ratchet / timing.
+  Defaults: K4 = step probability, K5 = swing. New learnable buttons:
+  Accent, Pattern −, Pattern +, Duplicate pattern.
+- UI: pattern bar (active, blinking queued), swing in the transport,
+  step inspector for the focused step, step markers (accent dot, ×N
+  ratchet, chance %, timing tick), focused-step outline. Time signature
+  display removed from the transport (it is not editable yet).
+- Verified: 109 unit tests (groove timing at three tempos, probability,
+  accent cap, ratchet durations, loop-boundary pattern switch, step-key
+  tap vs hold-edit, pattern operations); in the real app a pattern
+  queued mid-loop switched at the loop boundary, no console errors, no
+  horizontal overflow at 1280/960 px. Not tested on the MPK by me; the
+  feel of swing and ratchets has not been judged by ear.
+- Known limitations: step keys toggle on release (not press); the screen
+  shows the new pattern about 0.1 s before you hear it (lookahead); swing
+  is global, not per part; no flam/humanize yet (Milestone 8).
+- Pad mode and keys mode are remembered between sessions
+  (`control.modes` in preferences), so a setup that stays in one mode
+  needs no button for it. Current user layout (Bank B, CC mode): 24
+  Pattern −, 25 Pattern +, 26 Clear part, 27 Duplicate pattern, 28
+  Play/Stop, 29 Stop sound, 30 Pad mode, 31 Accent; Bar −/+ and Keys mode
+  are unmapped (1-bar patterns, one keys mode).
+- **Next:** Milestone 5 --- sample browser and editor (import, preview,
+  waveform, trim, reverse, play modes), with MIDI controls for browsing.
+
 ### Milestone 0 --- Project foundation
 
 **Goal:** Establish a maintainable app structure.

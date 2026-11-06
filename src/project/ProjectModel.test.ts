@@ -119,3 +119,81 @@ describe('serialization', () => {
     expect(() => parseProject(JSON.stringify(broken))).toThrow(/8 parts/)
   })
 })
+
+import {
+  addPattern,
+  deletePattern,
+  duplicatePattern,
+  neighbourPatternId,
+  renamePattern,
+  selectPattern,
+  setSwing,
+  updateStep,
+} from './ProjectModel'
+
+describe('step settings and swing', () => {
+  it('clamps step patches', () => {
+    const p = createProject()
+    const next = updateStep(p, p.activePatternId, 0, 3, {
+      ratchet: 9,
+      probability: 2,
+      microtiming: -3,
+      velocity: 0,
+      accent: true,
+    })
+    expect(getActivePattern(next).tracks[0]!.steps[3]).toMatchObject({
+      ratchet: 4,
+      probability: 1,
+      microtiming: -0.5,
+      velocity: 0.05,
+      accent: true,
+    })
+  })
+
+  it('clamps swing to 0..1', () => {
+    expect(setSwing(createProject(), 1.4).swing).toBe(1)
+    expect(setSwing(createProject(), 0.333).swing).toBe(0.33)
+  })
+})
+
+describe('patterns', () => {
+  it('adds, duplicates (deep copy), renames, selects, and deletes', () => {
+    let p = createProject()
+    const first = p.activePatternId
+    p = toggleStep(p, first, 0, 0)
+    p = duplicatePattern(p, first)
+    const copy = p.activePatternId
+    expect(p.patterns.map((x) => x.name)).toEqual(['Pattern 1', 'Pattern 1 copy'])
+    expect(getActivePattern(p).tracks[0]!.steps[0]!.active).toBe(true)
+    // Editing the copy leaves the original alone.
+    p = toggleStep(p, copy, 0, 0)
+    expect(p.patterns[0]!.tracks[0]!.steps[0]!.active).toBe(true)
+
+    p = addPattern(p)
+    expect(p.patterns).toHaveLength(3)
+    expect(getActivePattern(p).name).toBe('Pattern 3')
+    p = renamePattern(p, p.activePatternId, '  Chorus  ')
+    expect(getActivePattern(p).name).toBe('Chorus')
+    expect(renamePattern(p, p.activePatternId, '   ')).toBe(p)
+
+    p = selectPattern(p, first)
+    expect(p.activePatternId).toBe(first)
+    p = deletePattern(p, first)
+    expect(p.patterns).toHaveLength(2)
+    expect(p.patterns.some((x) => x.id === p.activePatternId)).toBe(true)
+  })
+
+  it('never deletes the last pattern', () => {
+    const p = createProject()
+    expect(deletePattern(p, p.activePatternId)).toBe(p)
+  })
+
+  it('finds neighbours with wrap-around', () => {
+    let p = addPattern(addPattern(createProject()))
+    const ids = p.patterns.map((x) => x.id)
+    p = selectPattern(p, ids[0]!)
+    expect(neighbourPatternId(p, ids[0]!, 1)).toBe(ids[1])
+    expect(neighbourPatternId(p, ids[0]!, -1)).toBe(ids[2])
+    expect(neighbourPatternId(p, ids[2]!, 1)).toBe(ids[0])
+  })
+})

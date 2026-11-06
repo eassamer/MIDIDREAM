@@ -761,3 +761,138 @@ select:focus-visible {
 .learn-row {
   grid-template-columns: 10px 72px minmax(0, 1fr) 44px auto auto;
 }
+
+/* ---- Patterns ---- */
+.pattern-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.pattern-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.pattern-chip {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.pattern-num {
+  font-size: 10px;
+  color: var(--muted);
+}
+.pattern-chip.active {
+  background: var(--part-color, var(--accent));
+  color: #111;
+  border-color: transparent;
+}
+.pattern-chip.active .pattern-num {
+  color: #111;
+}
+.pattern-chip.queued {
+  border-color: #4f9dff;
+  animation: queued-blink 0.6s steps(2) infinite;
+}
+@keyframes queued-blink {
+  50% {
+    border-color: transparent;
+  }
+}
+.pattern-rename {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+  width: 140px;
+  background: var(--lcd-bg);
+  color: var(--text);
+  border: 1px solid var(--lcd-fg);
+  border-radius: 6px;
+}
+
+/* ---- Step badges and focus ---- */
+.step.focused {
+  box-shadow: 0 0 0 2px #4f9dff;
+}
+.badge {
+  position: absolute;
+  font-size: 9px;
+  font-family: 'SF Mono', Menlo, monospace;
+}
+.badge.accent {
+  top: 5px;
+  left: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+}
+.step.on .badge.accent {
+  background: #111;
+}
+.badge.ratchet {
+  bottom: 4px;
+  right: 5px;
+}
+.badge.prob {
+  top: 16px;
+  right: 5px;
+}
+.badge.micro {
+  bottom: 0;
+  width: 3px;
+  height: 4px;
+  background: #4f9dff;
+  transform: translateX(-50%);
+}
+
+/* ---- Step inspector ---- */
+.step-inspector {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.step-inspector.empty {
+  font-size: 12px;
+}
+.si-title {
+  min-width: 70px;
+}
+.step-inspector .control input[type='range'] {
+  width: 100px;
+}
+.small-seg button {
+  padding: 3px 10px;
+}
+.accent-btn.on {
+  background: #fff;
+  color: #111;
+}
+.swing input[type='range'] {
+  width: 70px;
+}
+
+/* Transport room for swing */
+.master > .control.compact > .label {
+  display: none;
+}
+.swing input[type='range'] {
+  width: 60px;
+}
+@media (max-width: 1100px) {
+  .transport .label,
+  .swing .control-value {
+    display: none;
+  }
+}

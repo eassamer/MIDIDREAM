@@ -34,6 +34,13 @@ export interface SequencerSource {
   /** Read on every tick, so edits during playback apply immediately. */
   getPattern(): Pattern
   getBpm(): number
+  /** 0..1; delays every second 16th by up to half a step. */
+  getSwing?(): number
+  /**
+   * Called when the pattern wraps back to its first step, before that step
+   * is scheduled: the place to apply a queued pattern change.
+   */
+  onPatternEnd?(): void
 }
 
 export interface SequencerTimer {
@@ -49,7 +56,12 @@ export interface SequencerOptions {
   /** Delay between pressing Play and the first step, seconds. */
   startDelay?: number
   timer?: SequencerTimer
+  /** Random source for step probability (0 <= x < 1). */
+  random?: () => number
 }
+
+/** How much an accent adds to a step's velocity (0..1 scale). */
+export const ACCENT_BOOST = 0.25
 
 /** Duration of one 16th-note step in seconds. */
 export function stepDuration(bpm: number): number {
@@ -76,11 +88,12 @@ export class Sequencer {
   private readonly interval: number
   private readonly startDelay: number
   private readonly timer: SequencerTimer
+  private readonly random: () => number
 
   private playing = false
   private handle: unknown = null
-  /** Absolute step counter since Play (not wrapped). */
-  private stepCounter = 0
+  /** Position within the current pattern. */
+  private patternStep = 0
   private nextStepTime = 0
   private history: ScheduledStep[] = []
   private listeners = new Set<(playing: boolean) => void>()
@@ -97,6 +110,7 @@ export class Sequencer {
     this.interval = options.interval ?? 25
     this.startDelay = options.startDelay ?? 0.05
     this.timer = options.timer ?? defaultTimer
+    this.random = options.random ?? Math.random
   }
 
   get isPlaying(): boolean {
@@ -112,7 +126,7 @@ export class Sequencer {
   start(): void {
     if (this.playing) return
     this.playing = true
-    this.stepCounter = 0
+    this.patternStep = 0
     this.skippedSteps = 0
     this.history = []
     this.nextStepTime = this.clock.now() + this.startDelay
@@ -145,8 +159,6 @@ export class Sequencer {
   tick(): void {
     if (!this.playing) return
     const now = this.clock.now()
-    const pattern = this.source.getPattern()
-    const length = pattern.lengthBars * STEPS_PER_BAR
 
     // If the scheduler was starved (e.g. the machine stalled), skip the missed
     // steps instead of firing them all at once, and stay on the grid.
@@ -156,7 +168,10 @@ export class Sequencer {
     }
 
     while (this.nextStepTime < now + this.lookahead) {
-      const step = this.stepCounter % length
+      const pattern = this.source.getPattern()
+      // The pattern may have been shortened under the playhead.
+      if (this.patternStep >= pattern.lengthBars * STEPS_PER_BAR) this.patternStep = 0
+      const step = this.patternStep
       this.scheduleStep(pattern, step, this.nextStepTime)
       this.history.push({ step, time: this.nextStepTime })
       if (this.history.length > HISTORY) this.history.shift()
@@ -181,18 +196,39 @@ export class Sequencer {
   private advance(): void {
     // Read BPM per step so tempo changes take effect on the next step.
     this.nextStepTime += stepDuration(this.source.getBpm())
-    this.stepCounter++
+    this.patternStep++
+    const length = this.source.getPattern().lengthBars * STEPS_PER_BAR
+    if (this.patternStep >= length) {
+      this.patternStep = 0
+      this.source.onPatternEnd?.()
+    }
   }
 
+  /**
+   * Turn one grid step into notes. Grid time is `time`; each note's real
+   * time adds swing (every second 16th) and the step's microtiming, and
+   * ratchets split the step into equal repeats.
+   */
   private scheduleStep(pattern: Pattern, step: number, time: number): void {
     const dur = stepDuration(this.source.getBpm())
+    const swing = Math.min(1, Math.max(0, this.source.getSwing?.() ?? 0))
+    const swingDelay = step % 2 === 1 ? swing * 0.5 * dur : 0
     for (let p = 0; p < PART_COUNT; p++) {
       const s = pattern.tracks[p]?.steps[step]
       if (!s?.active) continue
-      const velocity = Math.max(1, Math.round(s.velocity * 127))
-      const duration = Math.max(0.01, dur * s.gate)
+      if (s.probability < 1 && this.random() >= s.probability) continue
+      const level = Math.min(1, s.velocity + (s.accent ? ACCENT_BOOST : 0))
+      const velocity = Math.max(1, Math.round(level * 127))
+      const start = time + swingDelay + s.microtiming * dur
+      const ratchet = Math.max(1, Math.round(s.ratchet))
+      const slot = dur / ratchet
+      const duration = Math.max(0.01, slot * s.gate)
       const notes = s.notes.length > 0 ? s.notes : [undefined]
-      for (const note of notes) this.sink.playNote(p as PartIndex, velocity, note, time, duration)
+      for (let r = 0; r < ratchet; r++) {
+        for (const note of notes) {
+          this.sink.playNote(p as PartIndex, velocity, note, start + r * slot, duration)
+        }
+      }
     }
   }
 

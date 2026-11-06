@@ -4,12 +4,14 @@ import type { MidiEvent } from '../midi/messages'
 import type { PartIndex } from '../project/types'
 import { audioStore } from '../state/audioStore'
 import { midiStore } from '../state/midiStore'
-import { getActivePattern } from '../project/ProjectModel'
+import { getActivePattern, neighbourPatternId } from '../project/ProjectModel'
+import { StepEditor } from './StepEditor'
 import { projectStore } from '../state/projectStore'
 import { transportStore } from '../state/transportStore'
 import { Sequencer } from '../sequencer/Sequencer'
 import { midiController } from '../state/useMidiStore'
-import { controlStore } from '../state/controlStore'
+import { PREF_CONTROL_MODES, controlStore, sanitizeModes } from '../state/controlStore'
+import { preferences } from '../persistence/preferences'
 import { routeControl, type AppAction } from './controlRouting'
 
 /**
@@ -23,6 +25,16 @@ export const sequencer = new Sequencer(
   {
     getPattern: () => getActivePattern(projectStore.getState().project),
     getBpm: () => projectStore.getState().project.bpm,
+    getSwing: () => projectStore.getState().project.swing,
+    onPatternEnd: () => {
+      // Pattern changes requested during playback land on the loop boundary.
+      const queued = transportStore.getState().queuedPatternId
+      if (queued) {
+        transportStore.setState({ queuedPatternId: null })
+        projectStore.getState().selectPattern(queued)
+        stepEditor.reset()
+      }
+    },
   },
   {
     playNote: (part, velocity, note, when, duration) =>
@@ -31,6 +43,40 @@ export const sequencer = new Sequencer(
     releaseAll: () => audioEngine.releaseAll(),
   },
 )
+
+/** Step editing from keys/knobs; focus is mirrored into controlStore for the UI. */
+export const stepEditor = new StepEditor({
+  getStep: (part, step) =>
+    getActivePattern(projectStore.getState().project).tracks[part]?.steps[step],
+  toggleStep: (part, step, velocity) => {
+    const store = projectStore.getState()
+    const wasActive = getActivePattern(store.project).tracks[part]?.steps[step]?.active
+    store.toggleStep(part, step)
+    if (!wasActive) {
+      // Turning a step on: key velocity becomes step velocity, and you hear it.
+      store.setStepVelocity(part, step, velocity / 127)
+      if (!sequencer.isPlaying) audioEngine.trigger(part, velocity)
+    }
+  },
+  updateStep: (part, step, patch) => projectStore.getState().updateStep(part, step, patch),
+  setFocus: (focus) => controlStore.setState({ focusedStep: focus }),
+})
+
+/**
+ * Switch pattern. While playing, the change is queued to the end of the
+ * current loop (choosing the active pattern again cancels the queue).
+ */
+export function requestPattern(patternId: string): void {
+  const store = projectStore.getState()
+  if (sequencer.isPlaying) {
+    const queued = patternId === store.project.activePatternId ? null : patternId
+    transportStore.setState({ queuedPatternId: queued })
+  } else {
+    transportStore.setState({ queuedPatternId: null })
+    store.selectPattern(patternId)
+    stepEditor.reset()
+  }
+}
 
 /** Start or stop playback (resuming audio first if it was suspended). */
 export function togglePlay(): void {
@@ -42,6 +88,8 @@ export function togglePlay(): void {
 const heldKeys = new Map<number, PartIndex>()
 
 export function startApp(): void {
+  void restoreModes()
+
   // Engine status -> UI store.
   audioEngine.onStatsChange((stats) => audioStore.setState({ stats }))
   audioEngine.start()
@@ -71,7 +119,13 @@ export function startApp(): void {
   // Transport state -> UI, and a visual-only playhead that follows the audio
   // clock (offset by output latency so it matches what you hear).
   sequencer.onPlayingChange((playing) => {
-    transportStore.setState({ playing, playheadStep: null })
+    const queued = transportStore.getState().queuedPatternId
+    transportStore.setState({ playing, playheadStep: null, queuedPatternId: null })
+    // Stopping with a change queued: switch now rather than dropping the request.
+    if (!playing && queued) {
+      projectStore.getState().selectPattern(queued)
+      stepEditor.reset()
+    }
     if (playing) requestAnimationFrame(followPlayhead)
   })
 
@@ -130,19 +184,35 @@ export function runAction(action: AppAction): void {
       break
     case 'selectPart':
       store.selectPart(action.part)
+      stepEditor.reset()
       break
-    case 'toggleStep': {
-      const pattern = getActivePattern(store.project)
-      const step = pattern.tracks[action.part]?.steps[action.step]
-      if (!step) break
-      store.toggleStep(action.part, action.step)
-      if (!step.active) {
-        // Turning a step on: key velocity becomes step velocity, and you hear it.
-        store.setStepVelocity(action.part, action.step, action.velocity / 127)
-        if (!sequencer.isPlaying) audioEngine.trigger(action.part, action.velocity)
-      }
+    case 'stepKeyDown':
+      stepEditor.keyDown(action.part, action.step, action.velocity)
+      break
+    case 'stepKeyUp':
+      stepEditor.keyUp(action.part, action.step)
+      break
+    case 'editFocusedStep':
+      stepEditor.editWithKnob(action.job, action.value)
+      break
+    case 'toggleAccent':
+      stepEditor.toggleAccent()
+      break
+    case 'setSwing':
+      store.setSwing(action.swing)
+      break
+    case 'stepPattern': {
+      const transport = transportStore.getState()
+      // Pressing again while a change is queued moves on from the queued one.
+      const from = transport.queuedPatternId ?? store.project.activePatternId
+      requestPattern(neighbourPatternId(store.project, from, action.offset))
       break
     }
+    case 'duplicatePattern':
+      store.duplicatePattern()
+      transportStore.setState({ queuedPatternId: null })
+      stepEditor.reset()
+      break
     case 'togglePlay':
       togglePlay()
       break
@@ -157,6 +227,7 @@ export function runAction(action: AppAction): void {
       break
     case 'setKeyMode':
       releaseHeldNotes()
+      stepEditor.reset()
       controlStore.setState({ keyMode: action.mode })
       break
     case 'setVisibleBar':
@@ -191,4 +262,18 @@ function followPlayhead(): void {
     transportStore.setState({ playheadStep: step })
   }
   requestAnimationFrame(followPlayhead)
+}
+
+/**
+ * Pad and keys modes are remembered between sessions, so a setup that never
+ * switches modes (e.g. keys always in Step entry) needs no button for it.
+ */
+async function restoreModes(): Promise<void> {
+  const saved = sanitizeModes(await preferences.get(PREF_CONTROL_MODES))
+  controlStore.setState(saved)
+  controlStore.subscribe((state, prev) => {
+    if (state.padMode !== prev.padMode || state.keyMode !== prev.keyMode) {
+      void preferences.set(PREF_CONTROL_MODES, { padMode: state.padMode, keyMode: state.keyMode })
+    }
+  })
 }
