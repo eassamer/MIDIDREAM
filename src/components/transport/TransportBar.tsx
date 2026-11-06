@@ -1,6 +1,7 @@
 import { useProjectStore } from '../../state/useProjectStore'
+import { MasterSection } from '../mixer/MasterSection'
 
-export type AppView = 'sequencer' | 'midi'
+export type AppView = 'sequencer' | 'midi' | 'audio'
 
 interface Props {
   view: AppView
@@ -25,12 +26,16 @@ export function TransportBar({ view, onViewChange }: Props) {
           {ts.beatsPerBar}/{ts.beatUnit}
         </span>
       </div>
+      <MasterSection />
       <nav className="view-tabs">
         <button aria-pressed={view === 'sequencer'} onClick={() => onViewChange('sequencer')}>
           Sequencer
         </button>
         <button aria-pressed={view === 'midi'} onClick={() => onViewChange('midi')}>
-          MIDI Setup
+          MIDI
+        </button>
+        <button aria-pressed={view === 'audio'} onClick={() => onViewChange('audio')}>
+          Audio
         </button>
       </nav>
     </header>

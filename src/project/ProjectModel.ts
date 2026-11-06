@@ -1,3 +1,4 @@
+import { builtinSampleRef, type BuiltinSampleId } from '../audio/builtinSamples'
 import {
   MAX_PATTERN_BARS,
   MIN_PATTERN_BARS,
@@ -35,6 +36,15 @@ const DEFAULT_PARTS: ReadonlyArray<{ name: string; role: PartRole; color: string
   { name: 'SYNTH', role: 'synth', color: '#a879ff' },
   { name: 'SAMPLE', role: 'sample', color: '#ff6fb5' },
 ]
+
+const DEFAULT_SAMPLES: Partial<Record<PartRole, BuiltinSampleId>> = {
+  kick: 'builtin:kick',
+  snare: 'builtin:snare',
+  'closed-hh': 'builtin:closed-hh',
+  'open-hh': 'builtin:open-hh',
+  perc: 'builtin:perc',
+  sample: 'builtin:stab',
+}
 
 /** Open and closed hi-hats choke each other by default. */
 const HIHAT_CHOKE_GROUP = 1
@@ -82,7 +92,14 @@ export function createPart(index: PartIndex): Part {
     pitchSemitones: 0,
     sound: pitched
       ? { kind: 'synth', waveform: preset.role === 'bass' ? 'sawtooth' : 'square' }
-      : { kind: 'sample', sample: null, playMode: 'one-shot', start: 0, end: 1, reverse: false },
+      : {
+          kind: 'sample',
+          sample: builtinSampleRef(DEFAULT_SAMPLES[preset.role]!),
+          playMode: 'one-shot',
+          start: 0,
+          end: 1,
+          reverse: false,
+        },
     filter: { type: 'lowpass', cutoffHz: 20000, resonance: 0.7 },
     ampEnvelope: { attack: 0.001, decay: 0.2, sustain: pitched ? 0.6 : 0, release: 0.1 },
     sends: { reverb: 0, delay: 0 },
@@ -184,4 +201,24 @@ export function setPartMute(project: Project, part: PartIndex, mute: boolean): P
   const parts = project.parts.slice()
   parts[part] = { ...parts[part]!, mute }
   return { ...project, parts }
+}
+
+/** Editable per-part mixer and sound fields. */
+export type PartPatch = Partial<
+  Pick<Part, 'name' | 'mute' | 'solo' | 'volume' | 'pan' | 'pitchSemitones' | 'sound'>
+>
+
+export function updatePart(project: Project, part: PartIndex, patch: PartPatch): Project {
+  const current = project.parts[part]!
+  const next: Part = { ...current, ...patch }
+  next.volume = clamp(next.volume, 0, 1)
+  next.pan = clamp(next.pan, -1, 1)
+  next.pitchSemitones = clamp(Math.round(next.pitchSemitones), -24, 24)
+  const parts = project.parts.slice()
+  parts[part] = next
+  return { ...project, parts }
+}
+
+export function setMasterVolume(project: Project, volume: number): Project {
+  return { ...project, masterVolume: clamp(volume, 0, 1) }
 }

@@ -2,6 +2,9 @@ import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import { registerPreferencesIpc } from './preferences'
 
+// A desktop instrument should make sound without a click first.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 function createWindow(): void {
   const win = new BrowserWindow({
     width: 1280,

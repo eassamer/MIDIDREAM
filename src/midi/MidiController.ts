@@ -31,6 +31,7 @@ export class MidiController {
   private nextLogId = 1
   private savedInputName: string | null = null
   private started = false
+  private controlListeners = new Set<(targets: LearnTargetId[], e: MidiEvent) => void>()
 
   constructor(
     private readonly store: MidiStore,
@@ -58,6 +59,12 @@ export class MidiController {
     })
     this.manager.onEvent((e) => this.handleEvent(e))
     await this.manager.start(this.savedInputName)
+  }
+
+  /** Subscribe to messages from learned controls (the app routes them to actions). */
+  onControl(listener: (targets: LearnTargetId[], e: MidiEvent) => void): () => void {
+    this.controlListeners.add(listener)
+    return () => this.controlListeners.delete(listener)
   }
 
   selectInput(id: string | null): void {
@@ -117,6 +124,7 @@ export class MidiController {
         if (value !== null) values[t] = value
       }
       this.store.setState({ activity, values })
+      for (const l of this.controlListeners) l(targets, e)
     }
 
     this.queueLog({

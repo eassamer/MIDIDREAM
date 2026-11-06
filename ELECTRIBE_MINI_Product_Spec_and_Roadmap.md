@@ -474,6 +474,36 @@ the next. Do not implement the entire product in one giant change.
 - **Next:** Milestone 2 --- independent audio engine with eight parts,
   sample playback, one synth voice, and panic.
 
+**Milestone 2 --- implemented (2026-11-06).**
+
+- `src/audio/AudioEngine.ts`: plain Web Audio (no Tone.js), independent of
+  React. Per part: input -> stereo panner -> fader; master gain -> safety
+  limiter -> analyser. Sample voices (one-shot / gated / loop, trim,
+  reverse, pitch) and a synth voice (oscillator -> filter -> ADSR).
+  Velocity, mute/solo, choke groups (hats), 16-voice cap per part, fast
+  fades on cut, panic, `releaseAll` on MIDI disconnect.
+- `src/audio/builtinSamples.ts`: six drum/stab sounds synthesized in code
+  (deterministic, normalized) and assigned to parts 1--5 and 8; parts 6--7
+  are synth voices.
+- `src/app/wiring.ts`: project store -> engine; learned pads trigger parts
+  1--8 (performance routing), keyboard plays the selected part
+  chromatically, with note-off going to the part that started the note.
+- UI: per-part play pad (hold to sustain), mute + solo, volume/pan/pitch
+  and waveform (synth only); master volume, peak meter with clip light,
+  Stop sound button and Cmd+. ; Audio view with status, sample rate,
+  latency, and an offline self-test of every part and the full mix.
+- Electron autoplay policy relaxed so audio starts without a click; a
+  suspended context resumes on the next click.
+- Verified: 55 unit tests (fake AudioContext), build, real-app self-test
+  (all parts audible, full mix peak about -0.8 dBFS, no clipping), live
+  output meter moved while the MPK pads were played. Listening quality
+  and latency feel were not judged by me.
+- Known limitations: no output-device picker yet (uses system default);
+  `outputLatency` reads 0 on this machine; no sample import yet; part
+  controls do not have MIDI Learn yet (Milestone 6).
+- **Next:** Milestone 3 --- 16-step sequencer with audio-clock
+  scheduling, transport, BPM, and playhead.
+
 ### Milestone 0 --- Project foundation
 
 **Goal:** Establish a maintainable app structure.

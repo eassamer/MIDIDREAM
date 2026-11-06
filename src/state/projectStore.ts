@@ -3,8 +3,11 @@ import {
   clearTrack,
   createProject,
   getActivePattern,
+  setMasterVolume,
   setPartMute,
   setPatternLength,
+  updatePart,
+  type PartPatch,
   toggleStep,
 } from '../project/ProjectModel'
 import type { PartIndex, Project } from '../project/types'
@@ -27,6 +30,9 @@ export interface ProjectState {
   clearPart: (part: PartIndex) => void
   setPatternLength: (bars: number) => void
   toggleMute: (part: PartIndex) => void
+  toggleSolo: (part: PartIndex) => void
+  updatePart: (part: PartIndex, patch: PartPatch) => void
+  setMasterVolume: (volume: number) => void
 }
 
 export function createProjectStore(initial: Project = createProject()) {
@@ -60,6 +66,12 @@ export function createProjectStore(initial: Project = createProject()) {
       const { project } = get()
       set({ project: setPartMute(project, part, !project.parts[part]!.mute) })
     },
+    toggleSolo: (part) => {
+      const { project } = get()
+      set({ project: updatePart(project, part, { solo: !project.parts[part]!.solo }) })
+    },
+    updatePart: (part, patch) => set({ project: updatePart(get().project, part, patch) }),
+    setMasterVolume: (volume) => set({ project: setMasterVolume(get().project, volume) }),
   }))
 }
 
