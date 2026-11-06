@@ -4,12 +4,18 @@ import { MAX_PATTERN_BARS, STEPS_PER_BAR, type PartIndex, type Step } from '../.
 import { projectStore } from '../../state/projectStore'
 import { useProjectStore } from '../../state/useProjectStore'
 import { useTransport } from '../../state/transportStore'
+import { useControl } from '../../state/controlStore'
+import { useMidiStore } from '../../state/useMidiStore'
+import { noteName } from '../../midi/messages'
 
 export function StepGrid() {
   const project = useProjectStore((s) => s.project)
   const selectedPart = useProjectStore((s) => s.selectedPart)
   const visibleBar = useProjectStore((s) => s.visibleBar)
   const playhead = useTransport((s) => s.playheadStep)
+  const stepEntry = useControl((s) => s.keyMode === 'step')
+  const stepKeys = useMidiStore((s) => s.mappings.stepKeys)
+  const stepKeyBase = stepEntry && stepKeys?.kind === 'note-range' ? stepKeys.note : null
   const { toggleStep, clearPart, clearPattern, doublePattern, setVisibleBar, setPatternLength } =
     projectStore.getState()
 
@@ -21,7 +27,7 @@ export function StepGrid() {
 
   return (
     <section
-      className="sequencer"
+      className={`sequencer ${stepEntry ? 'step-entry' : ''}`}
       aria-label="Step sequencer"
       style={{ '--part-color': part.color } as React.CSSProperties}
     >
@@ -88,6 +94,7 @@ export function StepGrid() {
             aria-label={`Step ${offset + i + 1}`}
           >
             <span>{i + 1}</span>
+            {stepKeyBase !== null && <span className="step-key">{noteName(stepKeyBase + i)}</span>}
           </button>
         ))}
       </div>

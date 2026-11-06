@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { TransportBar, type AppView } from '../components/transport/TransportBar'
 import { PartSelector } from '../components/parts/PartSelector'
+import { ControlStrip } from '../components/parts/ControlStrip'
 import { PartControls } from '../components/parts/PartControls'
 import { StepGrid } from '../components/sequencer/StepGrid'
 import { MidiSetup } from '../components/settings/MidiSetup'
@@ -41,6 +42,7 @@ export function App() {
       <main className="main">
         {view === 'sequencer' && (
           <>
+            <ControlStrip />
             <PartSelector />
             <PartControls />
             <StepGrid />

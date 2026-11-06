@@ -669,3 +669,95 @@ select:focus-visible {
     display: none;
   }
 }
+
+/* ---- Learn panel: more rows, knob jobs ---- */
+.midi-setup .learn-panel {
+  overflow: auto;
+  min-height: 0;
+}
+.learn-row .knob-job {
+  grid-column: 3 / -1;
+  font-size: 12px;
+  padding: 2px 6px;
+  min-width: 0;
+  width: 100%;
+}
+.learn-binding .muted {
+  font-size: 12px;
+}
+.learn-group:last-child {
+  grid-column: auto;
+  display: block;
+}
+
+/* ---- Controller mode strip ---- */
+.control-strip {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.mode-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.segmented button {
+  border: 0;
+  border-radius: 0;
+  padding: 6px 14px;
+  background: var(--panel);
+}
+.segmented button + button {
+  border-left: 1px solid var(--line);
+}
+.segmented button.on {
+  color: #111;
+  font-weight: 700;
+}
+.segmented .mode-trigger,
+.segmented .mode-play {
+  background: #46d160;
+}
+.segmented .mode-mute {
+  background: #e3b341;
+}
+.segmented .mode-select,
+.segmented .mode-step {
+  background: #4f9dff;
+}
+.small {
+  font-size: 12px;
+}
+
+/* ---- Step entry ---- */
+.sequencer.step-entry {
+  border-color: #4f9dff;
+  box-shadow: 0 0 0 1px #4f9dff inset;
+}
+.step {
+  position: relative;
+}
+.step-key {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 10px;
+  color: #4f9dff;
+  font-family: 'SF Mono', Menlo, monospace;
+}
+.step.on .step-key {
+  color: #111;
+}
+.midi-setup {
+  grid-template-columns: minmax(0, 2.4fr) minmax(260px, 1fr);
+}
+.learn-row {
+  grid-template-columns: 10px 72px minmax(0, 1fr) 44px auto auto;
+}

@@ -117,3 +117,38 @@ describe('sanitizeMappings', () => {
     expect(sanitizeMappings({ version: 99, mappings: {} })).toEqual({})
   })
 })
+
+describe('step keys and buttons', () => {
+  it('learns the step range from the first key', () => {
+    expect(bindingFromEvent('stepkeys', ev(0x90, 48, 90))).toEqual({
+      kind: 'note-range',
+      channel: 1,
+      note: 48,
+      count: 16,
+    })
+    expect(bindingFromEvent('button', ev(0x99, 44, 90))).toEqual({
+      kind: 'note',
+      channel: 10,
+      note: 44,
+    })
+  })
+
+  it('ranks single controls over the step range over the keyboard channel', () => {
+    const m: MidiMappings = {
+      keyboard: { kind: 'note-channel', channel: 1 },
+      stepKeys: { kind: 'note-range', channel: 1, note: 48, count: 16 },
+      btnPlay: { kind: 'note', channel: 1, note: 50 },
+    }
+    expect(matchEvent(m, ev(0x90, 50, 1))).toEqual(['btnPlay'])
+    expect(matchEvent(m, ev(0x90, 49, 1))).toEqual(['stepKeys', 'keyboard'])
+    expect(matchEvent(m, ev(0x90, 64, 1))).toEqual(['keyboard'])
+    expect(matchEvent(m, ev(0x90, 47, 1))).toEqual(['keyboard'])
+  })
+
+  it('saves and restores the step range', () => {
+    const range = { kind: 'note-range', channel: 1, note: 48, count: 16 } as const
+    expect(
+      sanitizeMappings({ version: MAPPINGS_SCHEMA_VERSION, mappings: { stepKeys: range } }),
+    ).toEqual({ stepKeys: range })
+  })
+})

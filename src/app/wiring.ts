@@ -9,6 +9,8 @@ import { projectStore } from '../state/projectStore'
 import { transportStore } from '../state/transportStore'
 import { Sequencer } from '../sequencer/Sequencer'
 import { midiController } from '../state/useMidiStore'
+import { controlStore } from '../state/controlStore'
+import { routeControl, type AppAction } from './controlRouting'
 
 /**
  * Connects the independent layers: project state -> audio engine, and
@@ -56,7 +58,7 @@ export function startApp(): void {
   })
 
   // Learned MIDI controls -> sound.
-  midiController.onControl(routeControl)
+  midiController.onControl(onMidiControl)
 
   // Losing the MIDI device must not leave notes hanging.
   midiStore.subscribe((state, prev) => {
@@ -79,36 +81,105 @@ export function startApp(): void {
   })
 }
 
-function padPart(target: LearnTargetId): PartIndex | null {
-  const m = /^pad([1-8])$/.exec(target)
-  return m ? ((Number(m[1]) - 1) as PartIndex) : null
+/** Learned MIDI control -> actions (pure router) -> side effects (here). */
+function onMidiControl(targets: LearnTargetId[], e: MidiEvent): void {
+  const project = projectStore.getState()
+  const pattern = getActivePattern(project.project)
+  const actions = routeControl(targets, e, {
+    padMode: controlStore.getState().padMode,
+    keyMode: controlStore.getState().keyMode,
+    selectedPart: project.selectedPart,
+    visibleBar: project.visibleBar,
+    lengthBars: pattern.lengthBars,
+    mappings: midiStore.getState().mappings,
+    knobJobs: midiStore.getState().knobJobs,
+  })
+  for (const action of actions) runAction(action)
 }
 
-/** Performance routing: pads trigger parts, keys play the selected part. */
-function routeControl(targets: LearnTargetId[], e: MidiEvent): void {
-  for (const target of targets) {
-    const part = padPart(target)
-    if (part !== null) {
-      if (e.type === 'noteon') audioEngine.trigger(part, e.velocity)
-      else if (e.type === 'noteoff') audioEngine.release(part)
-      else if (e.type === 'cc') {
-        if (e.value > 0) audioEngine.trigger(part, e.value)
-        else audioEngine.release(part)
-      } else if (e.type === 'program') audioEngine.trigger(part, 100)
-      continue
+/** Release every note held from pads or keys (sequencer notes end on their own). */
+function releaseHeldNotes(): void {
+  heldKeys.clear()
+  audioEngine.releaseAll()
+}
+
+export function runAction(action: AppAction): void {
+  const store = projectStore.getState()
+  switch (action.type) {
+    case 'trigger':
+      audioEngine.trigger(action.part, action.velocity)
+      break
+    case 'release':
+      audioEngine.release(action.part)
+      break
+    case 'keyOn': {
+      const part = store.selectedPart
+      heldKeys.set(action.note, part)
+      audioEngine.trigger(part, action.velocity, action.note)
+      break
     }
-    if (target === 'keyboard') {
-      if (e.type === 'noteon') {
-        const selected = projectStore.getState().selectedPart
-        heldKeys.set(e.note, selected)
-        audioEngine.trigger(selected, e.velocity, e.note)
-      } else if (e.type === 'noteoff') {
-        // Release on the part the note started on, even if the selection changed.
-        const part = heldKeys.get(e.note) ?? projectStore.getState().selectedPart
-        heldKeys.delete(e.note)
-        audioEngine.release(part, e.note)
+    case 'keyOff': {
+      // Release on the part the note started on, even if the selection changed.
+      const part = heldKeys.get(action.note) ?? store.selectedPart
+      heldKeys.delete(action.note)
+      audioEngine.release(part, action.note)
+      break
+    }
+    case 'toggleMute':
+      store.toggleMute(action.part)
+      break
+    case 'selectPart':
+      store.selectPart(action.part)
+      break
+    case 'toggleStep': {
+      const pattern = getActivePattern(store.project)
+      const step = pattern.tracks[action.part]?.steps[action.step]
+      if (!step) break
+      store.toggleStep(action.part, action.step)
+      if (!step.active) {
+        // Turning a step on: key velocity becomes step velocity, and you hear it.
+        store.setStepVelocity(action.part, action.step, action.velocity / 127)
+        if (!sequencer.isPlaying) audioEngine.trigger(action.part, action.velocity)
       }
+      break
     }
+    case 'togglePlay':
+      togglePlay()
+      break
+    case 'panic':
+      audioEngine.panic()
+      break
+    case 'setPadMode':
+      // A pad held across a mode change would never get its note-off routed
+      // as a release, so let go of everything held first.
+      releaseHeldNotes()
+      controlStore.setState({ padMode: action.mode })
+      break
+    case 'setKeyMode':
+      releaseHeldNotes()
+      controlStore.setState({ keyMode: action.mode })
+      break
+    case 'setVisibleBar':
+      store.setVisibleBar(action.bar)
+      break
+    case 'clearPart':
+      store.clearPart(action.part)
+      break
+    case 'setPartVolume':
+      store.updatePart(action.part, { volume: action.volume })
+      break
+    case 'setPartPan':
+      store.updatePart(action.part, { pan: action.pan })
+      break
+    case 'setPartPitch':
+      store.updatePart(action.part, { pitchSemitones: action.semitones })
+      break
+    case 'setTempo':
+      store.setBpm(action.bpm)
+      break
+    case 'setMasterVolume':
+      store.setMasterVolume(action.volume)
+      break
   }
 }
 

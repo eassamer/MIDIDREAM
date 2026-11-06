@@ -538,10 +538,34 @@ the next. Do not implement the entire product in one giant change.
 - Known limitations: swing, probability, ratchets, accent, microtiming,
   and pattern switching are Milestone 4; the grid does not auto-follow the
   playing bar; steps cannot be entered from the MPK yet.
-- **Next:** Milestone 3.5 --- MIDI-first control (operate transport,
-  modes, step entry, and part sound from the MPK; see below). Planned,
-  not started. A first draft of the router was written then set aside on
-  request so it can be built in its own milestone.
+
+**Milestone 3.5 --- implemented, awaiting hardware sign-off (2026-11-06).**
+
+- MIDI Learn now covers: 8 pads, 8 knobs (each with a selectable job,
+  saved in preferences), 7 function buttons (Play/Stop, Stop sound, Pad
+  mode, Keys mode, Bar −, Bar +, Clear part), Step keys (learn the key
+  for step 1; 16 consecutive keys), joystick, keyboard.
+- `src/app/controlRouting.ts`: pure router (learned control + message +
+  modes -> actions). Single controls win over the step-key range, which
+  wins over the keyboard channel. Buttons fire on press only.
+- Pad modes Trigger / Mute / Select and keys modes Play / Step
+  (`src/state/controlStore.ts`). In Step mode a key toggles the step on
+  the visible bar; key velocity becomes step velocity; the step is
+  auditioned when the sequencer is stopped. Changing either mode releases
+  held notes first, so nothing sticks.
+- Screen: mode strip above the parts (also clickable), step-entry frame
+  around the grid, note names on steps showing which key plays them, a
+  warning if Step mode is on but step keys are not learned.
+- Verified: 86 unit tests (router: pads in all modes, buttons press-only,
+  bar limits, step keys per bar with velocity, keys outside the range,
+  every knob job, pad-mode zones; mapping ranking; knob jobs persist),
+  build, real app renders the strip and learn view with no errors.
+  **Not tested with the MPK by me** --- that is the acceptance check.
+- Known limitations: MPK octave shift moves the step keys (relearn or
+  reset octave); absolute knobs jump on part change; no MIDI action for
+  Clear pattern, Double, or part select prev/next yet.
+- **Next:** Milestone 4 --- swing, probability, ratchets, accent,
+  microtiming, multiple patterns and switching, each with a MIDI control.
 
 ### Milestone 0 --- Project foundation
 

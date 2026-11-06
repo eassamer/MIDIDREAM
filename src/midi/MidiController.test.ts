@@ -96,3 +96,14 @@ describe('MidiController', () => {
     expect(store.getState().mappings).toEqual({})
   })
 })
+
+describe('knob jobs', () => {
+  it('default, change, persist, and restore', async () => {
+    const first = await setup()
+    expect(first.store.getState().knobJobs.knob7).toBe('tempo')
+    first.controller.setKnobJob('knob7', 'partPan')
+    const second = await setup(memoryPrefs(first.prefs.data))
+    expect(second.store.getState().knobJobs.knob7).toBe('partPan')
+    expect(second.store.getState().knobJobs.knob1).toBe('partVolume')
+  })
+})

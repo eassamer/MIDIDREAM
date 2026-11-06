@@ -1,6 +1,7 @@
 import type { PreferenceStore } from '../persistence/preferences'
 import { MIDI_LOG_LIMIT, type MidiLogEntry, type MidiStore } from '../state/midiStore'
 import { MidiManager } from './MidiManager'
+import { sanitizeKnobJobs, type KnobJob } from './knobJobs'
 import {
   MAPPINGS_SCHEMA_VERSION,
   assignBinding,
@@ -9,6 +10,7 @@ import {
   getTarget,
   matchEvent,
   sanitizeMappings,
+  type KnobId,
   type LearnTargetId,
   type MidiMappings,
   type StoredMappings,
@@ -17,6 +19,7 @@ import { describeEvent, isRealtime, noteName, type MidiEvent } from './messages'
 
 export const PREF_MIDI_INPUT = 'midi.inputName'
 export const PREF_MIDI_MAPPINGS = 'midi.mappings'
+export const PREF_MIDI_KNOB_JOBS = 'midi.knobJobs'
 
 /** How often batched log lines are pushed to the store (UI only, not timing-critical). */
 const LOG_FLUSH_MS = 50
@@ -43,12 +46,16 @@ export class MidiController {
     if (this.started) return
     this.started = true
 
-    const [inputName, storedMappings] = await Promise.all([
+    const [inputName, storedMappings, storedKnobJobs] = await Promise.all([
       this.prefs.get<string>(PREF_MIDI_INPUT),
       this.prefs.get<StoredMappings>(PREF_MIDI_MAPPINGS),
+      this.prefs.get<unknown>(PREF_MIDI_KNOB_JOBS),
     ])
     this.savedInputName = typeof inputName === 'string' ? inputName : null
-    this.store.setState({ mappings: sanitizeMappings(storedMappings) })
+    this.store.setState({
+      mappings: sanitizeMappings(storedMappings),
+      knobJobs: sanitizeKnobJobs(storedKnobJobs),
+    })
 
     this.manager.onChange((snapshot) => {
       this.store.setState({ snapshot })
@@ -81,6 +88,12 @@ export class MidiController {
 
   clearMapping(target: LearnTargetId): void {
     this.setMappings(clearBinding(this.store.getState().mappings, target))
+  }
+
+  setKnobJob(knob: KnobId, job: KnobJob): void {
+    const knobJobs = { ...this.store.getState().knobJobs, [knob]: job }
+    this.store.setState({ knobJobs })
+    void this.prefs.set(PREF_MIDI_KNOB_JOBS, knobJobs)
   }
 
   clearAllMappings(): void {

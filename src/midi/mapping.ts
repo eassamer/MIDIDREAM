@@ -13,24 +13,57 @@ export type ControlBinding =
   | { kind: 'pitchbend'; channel: number }
   /** The keyboard: any note on this channel not claimed by a pad. */
   | { kind: 'note-channel'; channel: number }
+  /** `count` consecutive notes starting at `note` (the 16 step keys). */
+  | { kind: 'note-range'; channel: number; note: number; count: number }
 
 export type PadId = `pad${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
 export type KnobId = `knob${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
-export type LearnTargetId = PadId | KnobId | 'joyX' | 'joyY' | 'keyboard'
+export type ButtonId =
+  | 'btnPlay'
+  | 'btnPanic'
+  | 'btnPadMode'
+  | 'btnKeyMode'
+  | 'btnBarPrev'
+  | 'btnBarNext'
+  | 'btnClearPart'
+export type LearnTargetId = PadId | KnobId | ButtonId | 'stepKeys' | 'joyX' | 'joyY' | 'keyboard'
 
-export type LearnTargetKind = 'pad' | 'knob' | 'joystick' | 'keyboard'
+export type LearnTargetKind = 'pad' | 'knob' | 'button' | 'stepkeys' | 'joystick' | 'keyboard'
 
 export interface LearnTarget {
   id: LearnTargetId
   label: string
   kind: LearnTargetKind
+  /** One-line explanation shown in the learn table. */
+  hint?: string
 }
+
+/** Number of keys used for step entry (one bar). */
+export const STEP_KEY_COUNT = 16
 
 const range8 = [1, 2, 3, 4, 5, 6, 7, 8] as const
 
 export const LEARN_TARGETS: readonly LearnTarget[] = [
   ...range8.map((n): LearnTarget => ({ id: `pad${n}`, label: `Pad ${n}`, kind: 'pad' })),
   ...range8.map((n): LearnTarget => ({ id: `knob${n}`, label: `Knob ${n}`, kind: 'knob' })),
+  { id: 'btnPlay', label: 'Play / Stop', kind: 'button', hint: 'Start or stop the sequencer' },
+  { id: 'btnPanic', label: 'Stop sound', kind: 'button', hint: 'Silence everything now' },
+  { id: 'btnPadMode', label: 'Pad mode', kind: 'button', hint: 'Cycle Trigger → Mute → Select' },
+  {
+    id: 'btnKeyMode',
+    label: 'Keys mode',
+    kind: 'button',
+    hint: 'Toggle keys: Play notes ↔ Step entry',
+  },
+  { id: 'btnBarPrev', label: 'Bar −', kind: 'button', hint: 'Edit the previous bar' },
+  { id: 'btnBarNext', label: 'Bar +', kind: 'button', hint: 'Edit the next bar' },
+  { id: 'btnClearPart', label: 'Clear part', kind: 'button', hint: 'Clear the selected part' },
+  {
+    id: 'stepKeys',
+    label: 'Step keys',
+    kind: 'stepkeys',
+    hint: 'Press the key for step 1; the next 15 keys are steps 2–16',
+  },
   { id: 'joyX', label: 'Joystick X', kind: 'joystick' },
   { id: 'joyY', label: 'Joystick Y', kind: 'joystick' },
   { id: 'keyboard', label: 'Keyboard', kind: 'keyboard' },
@@ -57,6 +90,7 @@ export function getTarget(id: LearnTargetId): LearnTarget {
 export function bindingFromEvent(kind: LearnTargetKind, e: MidiEvent): ControlBinding | null {
   switch (kind) {
     case 'pad':
+    case 'button':
       if (e.type === 'noteon') return { kind: 'note', channel: e.channel, note: e.note }
       if (e.type === 'cc' && e.value > 0)
         return { kind: 'cc', channel: e.channel, controller: e.controller }
@@ -70,6 +104,10 @@ export function bindingFromEvent(kind: LearnTargetKind, e: MidiEvent): ControlBi
       return null
     case 'keyboard':
       return e.type === 'noteon' ? { kind: 'note-channel', channel: e.channel } : null
+    case 'stepkeys':
+      return e.type === 'noteon'
+        ? { kind: 'note-range', channel: e.channel, note: e.note, count: STEP_KEY_COUNT }
+        : null
   }
 }
 
@@ -91,24 +129,31 @@ export function bindingMatches(b: ControlBinding, e: MidiEvent): boolean {
       return e.type === 'pitchbend'
     case 'note-channel':
       return e.type === 'noteon' || e.type === 'noteoff'
+    case 'note-range':
+      return (
+        (e.type === 'noteon' || e.type === 'noteoff') &&
+        e.note >= b.note &&
+        e.note < b.note + b.count
+      )
   }
 }
 
 /**
- * Targets an event belongs to. Specific bindings win over the keyboard's
- * channel-wide binding, so a pad sharing the keyboard's channel is not also
- * treated as a key.
+ * Targets an event belongs to, most specific first: a single control (pad,
+ * button, knob) beats the step-key range, which beats the keyboard channel.
+ * The step keys are still keyboard keys, so both are reported for them and
+ * the router decides by the current keys mode.
  */
 export function matchEvent(mappings: MidiMappings, e: MidiEvent): LearnTargetId[] {
   const specific: LearnTargetId[] = []
-  let keyboard = false
+  const broad: LearnTargetId[] = []
   for (const [id, binding] of Object.entries(mappings) as [LearnTargetId, ControlBinding][]) {
     if (!bindingMatches(binding, e)) continue
-    if (binding.kind === 'note-channel') keyboard = true
+    if (binding.kind === 'note-range') broad.unshift(id)
+    else if (binding.kind === 'note-channel') broad.push(id)
     else specific.push(id)
   }
-  if (keyboard && specific.length === 0) return ['keyboard']
-  return specific
+  return specific.length > 0 ? specific : broad
 }
 
 /**
@@ -146,6 +191,8 @@ export function describeBinding(b: ControlBinding): string {
       return `Pitch bend · ch${b.channel}`
     case 'note-channel':
       return `All notes · ch${b.channel}`
+    case 'note-range':
+      return `Notes ${b.note}–${b.note + b.count - 1} · ch${b.channel}`
   }
 }
 
@@ -168,6 +215,13 @@ export function sanitizeMappings(data: unknown): MidiMappings {
       out[target.id] = { kind: 'cc', channel, controller: b['controller'] as number }
     } else if (b['kind'] === 'program' && is7(b['program'])) {
       out[target.id] = { kind: 'program', channel, program: b['program'] as number }
+    } else if (b['kind'] === 'note-range' && is7(b['note']) && b['count'] === STEP_KEY_COUNT) {
+      out[target.id] = {
+        kind: 'note-range',
+        channel,
+        note: b['note'] as number,
+        count: STEP_KEY_COUNT,
+      }
     } else if (b['kind'] === 'pitchbend' || b['kind'] === 'note-channel') {
       out[target.id] = { kind: b['kind'], channel }
     }

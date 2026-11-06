@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { LEARN_TARGETS, describeBinding, type LearnTarget } from '../../midi/mapping'
+import { KNOB_JOB_LABELS, type KnobJob } from '../../midi/knobJobs'
+import { LEARN_TARGETS, describeBinding, type KnobId, type LearnTarget } from '../../midi/mapping'
 import { midiController, useMidiStore } from '../../state/useMidiStore'
 
 export function MidiSetup() {
@@ -76,11 +77,17 @@ function LearnPanel() {
   }, [learning])
 
   const groups: [string, LearnTarget[]][] = [
-    ['Pads', LEARN_TARGETS.filter((t) => t.kind === 'pad')],
+    ['Pads → parts 1–8 (Bank A)', LEARN_TARGETS.filter((t) => t.kind === 'pad')],
     ['Knobs', LEARN_TARGETS.filter((t) => t.kind === 'knob')],
     [
-      'Joystick & keyboard',
-      LEARN_TARGETS.filter((t) => t.kind === 'joystick' || t.kind === 'keyboard'),
+      'Function buttons (Bank B pads or spare keys)',
+      LEARN_TARGETS.filter((t) => t.kind === 'button'),
+    ],
+    [
+      'Keyboard',
+      LEARN_TARGETS.filter(
+        (t) => t.kind === 'stepkeys' || t.kind === 'keyboard' || t.kind === 'joystick',
+      ),
     ],
   ]
 
@@ -99,7 +106,7 @@ function LearnPanel() {
       </div>
       <p className="muted">
         Click <strong>Learn</strong>, then press the pad, turn the knob, move the joystick, or play
-        a key. Esc cancels.
+        a key. Esc cancels. A control can only do one job: learning it again elsewhere moves it.
       </p>
       <div className="learn-groups">
         {groups.map(([title, targets]) => (
@@ -117,6 +124,8 @@ function LearnPanel() {
 
 const LEARN_HINT: Record<LearnTarget['kind'], string> = {
   pad: 'Press the pad…',
+  button: 'Press a pad or key…',
+  stepkeys: 'Press the key for step 1…',
   knob: 'Turn the knob…',
   joystick: 'Move the joystick…',
   keyboard: 'Play any key…',
@@ -131,9 +140,17 @@ function LearnRow({ target }: { target: LearnTarget }) {
   return (
     <div className={`learn-row ${isLearning ? 'learning' : ''}`}>
       <span key={activity} className={`led ${activity ? 'flash' : ''}`} />
-      <span className="learn-label">{target.label}</span>
+      <span className="learn-label" title={target.hint}>
+        {target.label}
+      </span>
       <span className="learn-binding">
-        {isLearning ? LEARN_HINT[target.kind] : binding ? describeBinding(binding) : '—'}
+        {isLearning ? (
+          LEARN_HINT[target.kind]
+        ) : binding ? (
+          describeBinding(binding)
+        ) : (
+          <span className="muted">{target.hint ?? '—'}</span>
+        )}
       </span>
       {!isLearning && (
         <span className="learn-value lcd">{binding && value !== undefined ? value : ''}</span>
@@ -152,7 +169,26 @@ function LearnRow({ target }: { target: LearnTarget }) {
       >
         ✕
       </button>
+      {target.kind === 'knob' && <KnobJobSelect knob={target.id as KnobId} />}
     </div>
+  )
+}
+
+function KnobJobSelect({ knob }: { knob: KnobId }) {
+  const job = useMidiStore((s) => s.knobJobs[knob])
+  return (
+    <select
+      className="knob-job"
+      aria-label={`What ${knob} controls`}
+      value={job}
+      onChange={(e) => midiController.setKnobJob(knob, e.target.value as KnobJob)}
+    >
+      {(Object.keys(KNOB_JOB_LABELS) as KnobJob[]).map((j) => (
+        <option key={j} value={j}>
+          {KNOB_JOB_LABELS[j]}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -170,7 +206,7 @@ function MonitorPanel() {
             checked={showRealtime}
             onChange={(e) => midiController.setShowRealtime(e.target.checked)}
           />
-          Show clock/realtime
+          Show clock
         </label>
         <button onClick={() => midiController.clearLog()}>Clear</button>
       </div>

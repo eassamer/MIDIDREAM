@@ -1,6 +1,7 @@
 import { createStore } from 'zustand/vanilla'
 import type { MidiSnapshot } from '../midi/MidiManager'
 import type { LearnTargetId, MidiMappings } from '../midi/mapping'
+import { DEFAULT_KNOB_JOBS, type KnobJobs } from '../midi/knobJobs'
 
 export interface MidiLogEntry {
   id: number
@@ -25,6 +26,8 @@ export interface MidiState {
   activity: Partial<Record<LearnTargetId, number>>
   /** Last human-readable value per learned control. */
   values: Partial<Record<LearnTargetId, string>>
+  /** What each learned knob controls. */
+  knobJobs: KnobJobs
 }
 
 export function createMidiStore() {
@@ -42,6 +45,7 @@ export function createMidiStore() {
     showRealtime: false,
     activity: {},
     values: {},
+    knobJobs: { ...DEFAULT_KNOB_JOBS },
   }))
 }
 
