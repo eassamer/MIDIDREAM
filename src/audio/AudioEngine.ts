@@ -1,5 +1,6 @@
 import { PART_COUNT, type Part, type PartIndex } from '../project/types'
 import { BUILTIN_SAMPLE_IDS, renderBuiltinSample } from './builtinSamples'
+import { decodeAiff, isAiff } from './aiff'
 import type { AudioCommand, AudioEngineApi } from './commands'
 import {
   DEFAULT_NOTE,
@@ -36,6 +37,8 @@ const LOOKAHEAD_S = 0.005
 const MAX_VOICES_PER_PART = 16
 const VOICE_PEAK = 0.8
 const FADER_RAMP_S = 0.015
+/** Long files are auditioned for at most this long. */
+const PREVIEW_MAX_S = 8
 
 interface Voice {
   part: PartIndex
@@ -77,6 +80,7 @@ export class AudioEngine implements AudioEngineApi {
     error: null,
   }
   private listeners = new Set<(stats: EngineStats) => void>()
+  private previewNode: { src: AudioBufferSourceNode; gain: GainNode } | null = null
 
   constructor(private readonly createContext: ContextFactory = defaultFactory) {}
 
@@ -229,6 +233,82 @@ export class AudioEngine implements AudioEngineApi {
     }
   }
 
+  // ------------------------------------------------------------ samples
+
+  /**
+   * Decode audio file bytes (WAV via the runtime, AIFF via our parser) and
+   * make it playable under `id`. The original bytes are not modified.
+   */
+  async loadSample(id: string, bytes: Uint8Array): Promise<{ duration: number; channels: number }> {
+    const ctx = this.ctx
+    if (!ctx) throw new Error('Audio engine not started')
+    let buffer: AudioBuffer
+    if (isAiff(bytes)) {
+      const decoded = decodeAiff(bytes)
+      buffer = ctx.createBuffer(
+        decoded.channels.length,
+        Math.max(1, decoded.channels[0]!.length),
+        decoded.sampleRate,
+      )
+      decoded.channels.forEach((data, c) => buffer.getChannelData(c).set(data))
+    } else {
+      // decodeAudioData detaches its input, so give it a copy.
+      buffer = await ctx.decodeAudioData(bytes.slice().buffer)
+    }
+    this.buffers.set(id, buffer)
+    return { duration: buffer.duration, channels: buffer.numberOfChannels }
+  }
+
+  hasSample(id: string): boolean {
+    return this.buffers.has(id)
+  }
+
+  /** Read-only sample data for waveform drawing. */
+  getSampleData(id: string): { channels: Float32Array[]; duration: number } | null {
+    const b = this.buffers.get(id)
+    if (!b) return null
+    return {
+      channels: Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c)),
+      duration: b.duration,
+    }
+  }
+
+  /** Audition a sample on its own (not through a part). Replaces any running preview. */
+  preview(id: string): void {
+    const ctx = this.ctx
+    const buffer = this.buffers.get(id)
+    if (!ctx || !buffer || !this.master) return
+    this.stopPreview()
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    const gain = ctx.createGain()
+    gain.gain.value = 0.7
+    src.connect(gain)
+    gain.connect(this.master)
+    const t = ctx.currentTime + LOOKAHEAD_S
+    src.start(t, 0, Math.min(buffer.duration, PREVIEW_MAX_S))
+    src.onended = () => {
+      src.disconnect()
+      gain.disconnect()
+      if (this.previewNode?.src === src) this.previewNode = null
+    }
+    this.previewNode = { src, gain }
+  }
+
+  stopPreview(): void {
+    const p = this.previewNode
+    if (!p || !this.ctx) return
+    const t = this.ctx.currentTime
+    holdAt(p.gain.gain, t)
+    p.gain.gain.linearRampToValueAtTime(0, t + CUT_FADE_S)
+    try {
+      p.src.stop(t + CUT_FADE_S + 0.01)
+    } catch {
+      // already stopped
+    }
+    this.previewNode = null
+  }
+
   /** Current audio clock time in seconds (0 before start). */
   now(): number {
     return this.ctx?.currentTime ?? 0
@@ -251,6 +331,7 @@ export class AudioEngine implements AudioEngineApi {
   panic(): void {
     const ctx = this.ctx
     if (!ctx) return
+    this.stopPreview()
     const t = ctx.currentTime
     for (const channel of this.channels) {
       for (const v of channel.voices) v.release(t, true)

@@ -607,6 +607,50 @@ the next. Do not implement the entire product in one giant change.
 - **Next:** Milestone 5 --- sample browser and editor (import, preview,
   waveform, trim, reverse, play modes), with MIDI controls for browsing.
 
+**Milestone 5 --- implemented, awaiting hardware sign-off (2026-11-06).**
+
+- File access (`electron/main/samples.ts`): pick files, add a folder
+  (recursive scan, WAV/AIFF only, up to 5000 files), pick a replacement,
+  read a file (absolute path, WAV/AIFF extension, max 200 MB). Files are
+  only read, never written. Drag-and-drop uses `webUtils.getPathForFile`.
+- Decoding: WAV through Chromium; AIFF / AIFF-C through our own parser
+  (`src/audio/aiff.ts`: 8/16/24/32-bit PCM, big- and little-endian,
+  32-bit float).
+- Engine: `loadSample`, `preview` (separate from parts, max 8 s, replaced
+  by the next preview, stopped by panic), `getSampleData` for waveforms.
+- Library (`src/samples/SampleLibrary.ts`): entries {id, name, path}
+  saved in preferences (`samples.library`); loaded on demand (once, even
+  with concurrent requests); status ready / missing / error with reason;
+  relink keeps the id so every part using the sample follows; removing
+  an entry never deletes the file.
+- Model: assign sample (resets trim/reverse, keeps play mode), turn a
+  part into a synth, trim with start/end that never cross, reverse,
+  one-shot / gated / loop, choke groups 1--4, repoint relinked samples.
+- UI: new Sound view --- part pads, sound editor (waveform with draggable
+  start/end, region length in ms, play mode, reverse, choke group,
+  audition, missing-file banner with Locate…) and browser (Synth voice,
+  built-ins, your samples, search, Import files…, Add folder…, drop
+  files, ▶ preview, ◀ ▶ step through sounds). Panic button renamed
+  "Silence" to fit the new tab.
+- MIDI-first: learnable Sound − / Sound + buttons (load the previous /
+  next sound on the selected part and play it), knob jobs "Sound: browse"
+  (absolute position across the list), "Sound: sample start", "Sound:
+  sample end".
+- Verified: 137 unit tests (AIFF variants built byte by byte, peaks,
+  library load/missing/decode-error/relink/dedupe, model rules, engine
+  WAV+AIFF loading and preview, router). In the real app with master at
+  0: a generated WAV and AIFF loaded (0.50 s), the waveform drew,
+  dragging the start handle set the region to 25--100% (375 ms), a
+  missing file showed "File not found" with Locate…; test entries were
+  removed from preferences afterwards. Not tested with the MPK by me.
+- Known limitations: trim / play mode / sample choice live in the project,
+  which is not saved yet (Milestone 10), so they reset on restart; the
+  library itself is remembered. The user's Bank B pads are all assigned,
+  so Sound −/+ need spare keys, or use a knob set to "Sound: browse".
+  Slicing, normalize and other formats are later.
+- **Next:** Milestone 6 --- filters, envelopes and effects (reverb,
+  delay, drive, chorus, master compression), on knobs via MIDI Learn.
+
 ### Milestone 0 --- Project foundation
 
 **Goal:** Establish a maintainable app structure.

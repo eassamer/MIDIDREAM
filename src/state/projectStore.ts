@@ -1,6 +1,12 @@
 import { createStore } from 'zustand/vanilla'
 import {
   addPattern,
+  assignSample,
+  assignSynth,
+  replaceSampleRef,
+  setChokeGroup,
+  updateSample,
+  type SamplePatch,
   clearPattern,
   clearTrack,
   deletePattern,
@@ -22,7 +28,7 @@ import {
   type PartPatch,
   toggleStep,
 } from '../project/ProjectModel'
-import type { PartIndex, Project } from '../project/types'
+import type { OscillatorWaveform, PartIndex, Project, SampleRef } from '../project/types'
 
 /**
  * Framework-agnostic project store. The audio engine, MIDI layer, and React UI
@@ -57,6 +63,11 @@ export interface ProjectState {
   duplicatePattern: () => void
   deletePattern: () => void
   renamePattern: (patternId: string, name: string) => void
+  assignSample: (part: PartIndex, sample: SampleRef) => void
+  assignSynth: (part: PartIndex, waveform?: OscillatorWaveform) => void
+  updateSample: (part: PartIndex, patch: SamplePatch) => void
+  setChokeGroup: (part: PartIndex, group: number | null) => void
+  replaceSampleRef: (ref: SampleRef) => void
 }
 
 export function createProjectStore(initial: Project = createProject()) {
@@ -125,6 +136,11 @@ export function createProjectStore(initial: Project = createProject()) {
       const { project } = get()
       set({ project: deletePattern(project, project.activePatternId), visibleBar: 0 })
     },
+    assignSample: (part, sample) => set({ project: assignSample(get().project, part, sample) }),
+    assignSynth: (part, waveform) => set({ project: assignSynth(get().project, part, waveform) }),
+    updateSample: (part, patch) => set({ project: updateSample(get().project, part, patch) }),
+    setChokeGroup: (part, group) => set({ project: setChokeGroup(get().project, part, group) }),
+    replaceSampleRef: (ref) => set({ project: replaceSampleRef(get().project, ref) }),
     renamePattern: (patternId, name) =>
       set({ project: renamePattern(get().project, patternId, name) }),
     doublePattern: () => {

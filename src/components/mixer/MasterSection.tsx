@@ -23,7 +23,7 @@ export function MasterSection() {
       </label>
       <PeakMeter />
       <button className="panic" onClick={() => audioEngine.panic()} title="Stop all sound (⌘.)">
-        ■ Stop sound
+        Silence
       </button>
     </div>
   )

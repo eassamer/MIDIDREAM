@@ -14,6 +14,9 @@ export type KnobJob =
   | 'stepProbability'
   | 'stepRatchet'
   | 'stepMicro'
+  | 'sampleBrowse'
+  | 'sampleStart'
+  | 'sampleEnd'
 
 /** Knob jobs that edit the focused step (hold a step key, or the last one touched). */
 export const STEP_KNOB_JOBS = [
@@ -37,6 +40,9 @@ export const KNOB_JOB_LABELS: Record<KnobJob, string> = {
   stepProbability: 'Step: probability',
   stepRatchet: 'Step: ratchet (1–4 hits)',
   stepMicro: 'Step: microtiming (early/late)',
+  sampleBrowse: 'Sound: browse (selected part)',
+  sampleStart: 'Sound: sample start',
+  sampleEnd: 'Sound: sample end',
 }
 
 export type KnobJobs = Record<KnobId, KnobJob>

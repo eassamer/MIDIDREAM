@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, shell } from 'electron'
 import { join } from 'node:path'
 import { registerPreferencesIpc } from './preferences'
+import { registerSamplesIpc } from './samples'
 
 // A desktop instrument should make sound without a click first.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -67,6 +68,7 @@ function configurePermissions(): void {
 void app.whenReady().then(() => {
   configurePermissions()
   registerPreferencesIpc()
+  registerSamplesIpc()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

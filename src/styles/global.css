@@ -896,3 +896,147 @@ select:focus-visible {
     display: none;
   }
 }
+
+/* ---- Sound view ---- */
+.sound-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 16px;
+  min-height: 0;
+  flex: 1;
+}
+.sound-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sound-editor h2 {
+  color: var(--part-color);
+}
+.sound-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.sound-name .muted {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.waveform {
+  width: 100%;
+  background: #111116;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.waveform canvas {
+  display: block;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.sound-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.sound-controls .muted {
+  flex: 1 1 100%;
+}
+.sample-problem {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.choke select {
+  min-width: 120px;
+}
+
+.sample-browser {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.sample-browser.dropping {
+  border-color: #4f9dff;
+  box-shadow: 0 0 0 2px #4f9dff inset;
+}
+.browser-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.browser-search {
+  flex: 1 1 120px;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  background: #111116;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.browser-actions button {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.sample-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 120px;
+}
+.sample-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.sample-row button {
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  text-align: left;
+  font-size: 13px;
+}
+.sample-row .sample-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sample-row:hover {
+  background: #26262c;
+}
+.sample-row.current {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.sample-row.bad .sample-name {
+  color: var(--muted);
+}
+.sample-preview {
+  color: var(--lcd-fg);
+  text-align: center !important;
+}
+.sample-remove {
+  color: var(--muted);
+}
+.sample-group {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding: 10px 6px 4px;
+}
+.sample-empty {
+  padding: 4px 6px;
+}
+
+/* Room for the Sound tab */
+.view-tabs button {
+  padding: 6px 10px;
+}

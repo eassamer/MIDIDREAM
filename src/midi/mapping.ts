@@ -30,6 +30,8 @@ export type ButtonId =
   | 'btnPatPrev'
   | 'btnPatNext'
   | 'btnPatDup'
+  | 'btnSoundPrev'
+  | 'btnSoundNext'
 export type LearnTargetId = PadId | KnobId | ButtonId | 'stepKeys' | 'joyX' | 'joyY' | 'keyboard'
 
 export type LearnTargetKind = 'pad' | 'knob' | 'button' | 'stepkeys' | 'joystick' | 'keyboard'
@@ -76,6 +78,18 @@ export const LEARN_TARGETS: readonly LearnTarget[] = [
     hint: 'Next pattern (at loop end while playing)',
   },
   { id: 'btnPatDup', label: 'Duplicate pattern', kind: 'button', hint: 'Copy this pattern' },
+  {
+    id: 'btnSoundPrev',
+    label: 'Sound −',
+    kind: 'button',
+    hint: 'Previous sound on the selected part (plays it)',
+  },
+  {
+    id: 'btnSoundNext',
+    label: 'Sound +',
+    kind: 'button',
+    hint: 'Next sound on the selected part (plays it)',
+  },
   {
     id: 'stepKeys',
     label: 'Step keys',

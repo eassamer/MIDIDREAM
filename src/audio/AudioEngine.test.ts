@@ -204,3 +204,93 @@ describe('AudioEngine sequenced notes', () => {
     expect(engine.activeVoices(KICK)).toBe(1)
   })
 })
+
+describe('AudioEngine samples', () => {
+  it('loads WAV through the runtime decoder and plays it on a part', async () => {
+    const { ctx, engine, project } = setup()
+    const info = await engine.loadSample('user:1', new Uint8Array([1, 2, 3, 4]))
+    expect(info.duration).toBe(1)
+    expect(ctx.decoded).toEqual([4])
+    expect(engine.hasSample('user:1')).toBe(true)
+    const ref = { id: 'user:1', name: 'x', origin: 'user' as const, path: '/x.wav' }
+    const { assignSample } = await import('../project/ProjectModel')
+    engine.setParts(assignSample(project, KICK, ref).parts)
+    engine.trigger(KICK, 100)
+    expect((ctx.sources[0] as FakeBufferSource).buffer.duration).toBe(1)
+  })
+
+  it('loads AIFF with its own decoder', async () => {
+    const { ctx, engine } = setup()
+    // FORM/AIFF with COMM (1 ch, 2 frames, 16-bit, 8000 Hz) and SSND.
+    const bytes = new Uint8Array([
+      ...[0x46, 0x4f, 0x52, 0x4d],
+      0,
+      0,
+      0,
+      46,
+      ...[0x41, 0x49, 0x46, 0x46],
+      ...[0x43, 0x4f, 0x4d, 0x4d],
+      0,
+      0,
+      0,
+      18,
+      0,
+      1,
+      0,
+      0,
+      0,
+      2,
+      0,
+      16,
+      0x40,
+      0x0b,
+      0xfa,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      ...[0x53, 0x53, 0x4e, 0x44],
+      0,
+      0,
+      0,
+      12,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0x40,
+      0,
+      0xc0,
+      0,
+    ])
+    const info = await engine.loadSample('user:aiff', bytes)
+    expect(ctx.decoded).toEqual([])
+    expect(info.channels).toBe(1)
+    expect(Array.from(engine.getSampleData('user:aiff')!.channels[0]!)).toEqual([0.5, -0.5])
+  })
+
+  it('previews a sample by itself and stops it on panic', async () => {
+    const { ctx, engine } = setup()
+    await engine.loadSample('user:1', new Uint8Array([1]))
+    engine.preview('user:1')
+    const first = ctx.sources[0]!
+    engine.preview('user:1') // a new preview replaces the old one
+    expect(first.stoppedAt).not.toBeNull()
+    engine.panic()
+    expect(ctx.sources[1]!.stoppedAt).not.toBeNull()
+  })
+
+  it('ignores unknown samples', () => {
+    const { ctx, engine } = setup()
+    engine.preview('user:nope')
+    expect(ctx.sources).toHaveLength(0)
+    expect(engine.getSampleData('user:nope')).toBeNull()
+  })
+})

@@ -38,6 +38,11 @@ export type AppAction =
   /** Change pattern by offset (queued to loop end while playing). */
   | { type: 'stepPattern'; offset: number }
   | { type: 'duplicatePattern' }
+  | { type: 'stepSound'; offset: number }
+  /** Absolute knob position (0..1) across the sound list. */
+  | { type: 'pickSound'; value: number }
+  | { type: 'setSampleStart'; part: PartIndex; value: number }
+  | { type: 'setSampleEnd'; part: PartIndex; value: number }
   | { type: 'togglePlay' }
   | { type: 'panic' }
   | { type: 'setPadMode'; mode: PadMode }
@@ -155,6 +160,12 @@ export function routeControl(
       case 'btnPatDup':
         actions.push({ type: 'duplicatePattern' })
         break
+      case 'btnSoundPrev':
+        actions.push({ type: 'stepSound', offset: -1 })
+        break
+      case 'btnSoundNext':
+        actions.push({ type: 'stepSound', offset: 1 })
+        break
     }
   }
   return actions
@@ -185,6 +196,12 @@ function knobAction(job: KnobJob, value: number, state: RoutingState): AppAction
       return { type: 'setMasterVolume', volume: v }
     case 'swing':
       return { type: 'setSwing', swing: v }
+    case 'sampleBrowse':
+      return { type: 'pickSound', value: v }
+    case 'sampleStart':
+      return { type: 'setSampleStart', part, value: v }
+    case 'sampleEnd':
+      return { type: 'setSampleEnd', part, value: v }
     case 'stepVelocity':
     case 'stepProbability':
     case 'stepRatchet':

@@ -8,7 +8,10 @@ import {
   type Part,
   type PartIndex,
   type PartRole,
+  type OscillatorWaveform,
   type PartTrack,
+  type SampleRef,
+  type SampleSource,
   type Pattern,
   type Project,
   type Step,
@@ -394,4 +397,63 @@ export function neighbourPatternId(project: Project, patternId: string, offset: 
   const n = project.patterns.length
   const index = project.patterns.findIndex((p) => p.id === patternId)
   return project.patterns[(((index + offset) % n) + n) % n]!.id
+}
+
+// ---------------------------------------------------------------- sounds
+
+/** Load a sample onto a part. Trim/reverse reset; play mode is kept if it was a sample part. */
+export function assignSample(project: Project, part: PartIndex, sample: SampleRef): Project {
+  const current = project.parts[part]!
+  const playMode = current.sound.kind === 'sample' ? current.sound.playMode : 'one-shot'
+  const sound: SampleSource = { kind: 'sample', sample, playMode, start: 0, end: 1, reverse: false }
+  return updatePart(project, part, { sound })
+}
+
+/** Turn a part into a synth voice. */
+export function assignSynth(
+  project: Project,
+  part: PartIndex,
+  waveform: OscillatorWaveform = 'sawtooth',
+): Project {
+  return updatePart(project, part, { sound: { kind: 'synth', waveform } })
+}
+
+export type SamplePatch = Partial<Pick<SampleSource, 'start' | 'end' | 'reverse' | 'playMode'>>
+
+/** Minimum trimmed region, as a fraction of the file. */
+export const MIN_SAMPLE_REGION = 0.001
+
+/** Edit trim / reverse / play mode. Start and end never cross. No-op for synth parts. */
+export function updateSample(project: Project, part: PartIndex, patch: SamplePatch): Project {
+  const sound = project.parts[part]!.sound
+  if (sound.kind !== 'sample') return project
+  const next: SampleSource = { ...sound, ...patch }
+  next.start = clamp(next.start, 0, 1 - MIN_SAMPLE_REGION)
+  next.end = clamp(next.end, MIN_SAMPLE_REGION, 1)
+  if (next.end - next.start < MIN_SAMPLE_REGION) {
+    // Keep whichever edge was moved; push the other one away.
+    if (patch.start !== undefined) next.end = Math.min(1, next.start + MIN_SAMPLE_REGION)
+    else next.start = Math.max(0, next.end - MIN_SAMPLE_REGION)
+  }
+  return updatePart(project, part, { sound: next })
+}
+
+export const CHOKE_GROUPS = [1, 2, 3, 4] as const
+
+export function setChokeGroup(project: Project, part: PartIndex, group: number | null): Project {
+  const value = group === null ? null : clamp(Math.round(group), 1, CHOKE_GROUPS.length)
+  const parts = project.parts.slice()
+  parts[part] = { ...parts[part]!, chokeGroup: value }
+  return { ...project, parts }
+}
+
+/** Repoint every part using sample `ref.id` at the updated reference (relinked file). */
+export function replaceSampleRef(project: Project, ref: SampleRef): Project {
+  let changed = false
+  const parts = project.parts.map((p) => {
+    if (p.sound.kind !== 'sample' || p.sound.sample?.id !== ref.id) return p
+    changed = true
+    return { ...p, sound: { ...p.sound, sample: ref } }
+  })
+  return changed ? { ...project, parts } : project
 }

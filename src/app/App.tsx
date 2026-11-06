@@ -7,6 +7,8 @@ import { StepGrid } from '../components/sequencer/StepGrid'
 import { MidiSetup } from '../components/settings/MidiSetup'
 import { MidiIndicator } from '../components/settings/MidiIndicator'
 import { AudioSetup } from '../components/settings/AudioSetup'
+import { SoundEditor } from '../components/sample-browser/SoundEditor'
+import { SampleBrowser } from '../components/sample-browser/SampleBrowser'
 import { AudioIndicator } from '../components/settings/AudioIndicator'
 import { audioEngine, togglePlay } from './wiring'
 
@@ -46,6 +48,15 @@ export function App() {
             <PartSelector />
             <PartControls />
             <StepGrid />
+          </>
+        )}
+        {view === 'sound' && (
+          <>
+            <PartSelector />
+            <div className="sound-view">
+              <SoundEditor />
+              <SampleBrowser />
+            </div>
           </>
         )}
         {view === 'midi' && <MidiSetup />}

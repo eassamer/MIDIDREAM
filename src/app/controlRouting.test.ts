@@ -165,3 +165,29 @@ describe('groove and pattern controls', () => {
     expect(route([0xb0, 74, 0])).toEqual([{ type: 'setSwing', swing: 0 }])
   })
 })
+
+describe('sound controls', () => {
+  const m: MidiMappings = {
+    ...mappings,
+    btnSoundPrev: { kind: 'note', channel: 1, note: 30 },
+    btnSoundNext: { kind: 'note', channel: 1, note: 31 },
+  }
+  const knobJobs = {
+    ...DEFAULT_KNOB_JOBS,
+    knob1: 'sampleBrowse' as const,
+    knob2: 'sampleStart' as const,
+    knob3: 'sampleEnd' as const,
+  }
+  const r = (bytes: number[]) => {
+    const e = ev(...bytes)
+    return routeControl(matchEvent(m, e), e, { ...base, mappings: m, knobJobs })
+  }
+
+  it('steps through sounds and maps knobs to browse/start/end', () => {
+    expect(r([0x90, 30, 100])).toEqual([{ type: 'stepSound', offset: -1 }])
+    expect(r([0x90, 31, 100])).toEqual([{ type: 'stepSound', offset: 1 }])
+    expect(r([0xb0, 70, 127])).toEqual([{ type: 'pickSound', value: 1 }])
+    expect(r([0xb0, 71, 0])).toEqual([{ type: 'setSampleStart', part: 2, value: 0 }])
+    expect(r([0xb0, 72, 127])).toEqual([{ type: 'setSampleEnd', part: 2, value: 1 }])
+  })
+})

@@ -197,3 +197,61 @@ describe('patterns', () => {
     expect(neighbourPatternId(p, ids[2]!, 1)).toBe(ids[0])
   })
 })
+
+import {
+  assignSample,
+  assignSynth,
+  replaceSampleRef,
+  setChokeGroup,
+  updateSample,
+} from './ProjectModel'
+
+describe('sounds', () => {
+  const ref = { id: 'user:1', name: 'Clap', origin: 'user' as const, path: '/clap.wav' }
+
+  it('assigns a sample, resetting trim and reverse but keeping play mode', () => {
+    let p = createProject()
+    p = updateSample(p, 0, { start: 0.3, end: 0.6, reverse: true, playMode: 'gated' })
+    p = assignSample(p, 0, ref)
+    expect(p.parts[0]!.sound).toEqual({
+      kind: 'sample',
+      sample: ref,
+      playMode: 'gated',
+      start: 0,
+      end: 1,
+      reverse: false,
+    })
+  })
+
+  it('turns a synth part into a sample part and back', () => {
+    let p = assignSample(createProject(), 5, ref)
+    expect(p.parts[5]!.sound).toMatchObject({ kind: 'sample', playMode: 'one-shot' })
+    p = assignSynth(p, 5, 'square')
+    expect(p.parts[5]!.sound).toEqual({ kind: 'synth', waveform: 'square' })
+    expect(updateSample(p, 5, { start: 0.5 })).toBe(p) // no-op on synth parts
+  })
+
+  it('never lets start and end cross', () => {
+    let p = createProject()
+    p = updateSample(p, 0, { start: 0.7, end: 0.4 })
+    const s = p.parts[0]!.sound
+    expect(s.kind === 'sample' && s.end - s.start).toBeGreaterThan(0)
+    p = updateSample(createProject(), 0, { end: 0.2 })
+    p = updateSample(p, 0, { start: 0.5 })
+    const t = p.parts[0]!.sound
+    expect(t.kind === 'sample' && [t.start, t.end]).toEqual([0.5, expect.closeTo(0.501, 6)])
+  })
+
+  it('sets choke groups and repoints relinked samples', () => {
+    let p = setChokeGroup(createProject(), 4, 2)
+    expect(p.parts[4]!.chokeGroup).toBe(2)
+    p = setChokeGroup(p, 4, null)
+    expect(p.parts[4]!.chokeGroup).toBeNull()
+
+    p = assignSample(p, 1, ref)
+    const moved = { ...ref, path: '/moved/clap.wav' }
+    p = replaceSampleRef(p, moved)
+    expect(p.parts[1]!.sound).toMatchObject({ sample: moved })
+    expect(replaceSampleRef(p, { ...ref, id: 'user:none' })).toBe(p)
+  })
+})

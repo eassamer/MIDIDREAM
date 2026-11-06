@@ -6,7 +6,7 @@ import { useProjectStore } from '../../state/useProjectStore'
 import { useTransport } from '../../state/transportStore'
 import { MasterSection } from '../mixer/MasterSection'
 
-export type AppView = 'sequencer' | 'midi' | 'audio'
+export type AppView = 'sequencer' | 'sound' | 'midi' | 'audio'
 
 interface Props {
   view: AppView
@@ -37,6 +37,9 @@ export function TransportBar({ view, onViewChange }: Props) {
       <nav className="view-tabs">
         <button aria-pressed={view === 'sequencer'} onClick={() => onViewChange('sequencer')}>
           Sequencer
+        </button>
+        <button aria-pressed={view === 'sound'} onClick={() => onViewChange('sound')}>
+          Sound
         </button>
         <button aria-pressed={view === 'midi'} onClick={() => onViewChange('midi')}>
           MIDI

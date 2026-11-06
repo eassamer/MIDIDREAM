@@ -139,6 +139,13 @@ export class FakeAudioContext {
     this.sources.push(s)
     return s
   }
+  previewGains: { gain: FakeParam }[] = []
+  async decodeAudioData(data: ArrayBuffer) {
+    // Pretend every file is 1 s of mono audio; record the size we were given.
+    this.decoded.push(data.byteLength)
+    return this.createBuffer(1, this.sampleRate, this.sampleRate)
+  }
+  decoded: number[] = []
   async resume() {
     this.state = 'running'
   }

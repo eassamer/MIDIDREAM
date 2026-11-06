@@ -12,6 +12,9 @@ import { Sequencer } from '../sequencer/Sequencer'
 import { midiController } from '../state/useMidiStore'
 import { PREF_CONTROL_MODES, controlStore, sanitizeModes } from '../state/controlStore'
 import { preferences } from '../persistence/preferences'
+import { SampleLibrary, browsableRefs } from '../samples/SampleLibrary'
+import { sampleStore } from '../state/sampleStore'
+import type { SampleRef } from '../project/types'
 import { routeControl, type AppAction } from './controlRouting'
 
 /**
@@ -78,6 +81,60 @@ export function requestPattern(patternId: string): void {
   }
 }
 
+/** User sample library (file access comes from the Electron preload). */
+export const sampleLibrary = new SampleLibrary(
+  sampleStore,
+  typeof window !== 'undefined' ? (window.desktop?.samples ?? null) : null,
+  audioEngine,
+  preferences,
+)
+
+/** Put a sample on a part, load it, and play it once through the part. */
+export async function assignSampleToPart(part: PartIndex, ref: SampleRef): Promise<void> {
+  projectStore.getState().assignSample(part, ref)
+  if ((await sampleLibrary.ensureLoaded(ref)) && !sequencer.isPlaying) {
+    audioEngine.trigger(part, 100)
+  }
+}
+
+/** Audition a sample by itself (browser preview), loading it first if needed. */
+export async function previewSample(ref: SampleRef): Promise<void> {
+  if (await sampleLibrary.ensureLoaded(ref)) audioEngine.preview(ref.id)
+}
+
+/** Next/previous sample in the browser list for the selected part (MPK browsing). */
+export function stepSample(offset: number): void {
+  const { project, selectedPart } = projectStore.getState()
+  const refs = browsableRefs(sampleStore.getState().library)
+  if (!refs.length) return
+  const sound = project.parts[selectedPart]!.sound
+  const current = sound.kind === 'sample' ? refs.findIndex((r) => r.id === sound.sample?.id) : -1
+  const next =
+    current < 0
+      ? offset > 0
+        ? 0
+        : refs.length - 1
+      : (current + offset + refs.length) % refs.length
+  void assignSampleToPart(selectedPart, refs[next]!)
+}
+
+/** Choose a sample by absolute knob position (0..1) across the browser list. */
+export function pickSampleAt(value: number): void {
+  const { project, selectedPart } = projectStore.getState()
+  const refs = browsableRefs(sampleStore.getState().library)
+  if (!refs.length) return
+  const ref = refs[Math.round(value * (refs.length - 1))]!
+  const sound = project.parts[selectedPart]!.sound
+  if (sound.kind === 'sample' && sound.sample?.id === ref.id) return
+  void assignSampleToPart(selectedPart, ref)
+}
+
+/** Ask the user for the new location of a missing file and repoint every part using it. */
+export async function relinkSample(ref: SampleRef): Promise<void> {
+  const next = await sampleLibrary.relink(ref)
+  if (next) projectStore.getState().replaceSampleRef(next)
+}
+
 /** Start or stop playback (resuming audio first if it was suspended). */
 export function togglePlay(): void {
   if (!sequencer.isPlaying) void audioEngine.resume()
@@ -89,6 +146,7 @@ const heldKeys = new Map<number, PartIndex>()
 
 export function startApp(): void {
   void restoreModes()
+  void sampleLibrary.start()
 
   // Engine status -> UI store.
   audioEngine.onStatsChange((stats) => audioStore.setState({ stats }))
@@ -99,7 +157,10 @@ export function startApp(): void {
   audioEngine.setParts(project.parts)
   audioEngine.setMasterVolume(project.masterVolume)
   projectStore.subscribe((state, prev) => {
-    if (state.project.parts !== prev.project.parts) audioEngine.setParts(state.project.parts)
+    if (state.project.parts !== prev.project.parts) {
+      audioEngine.setParts(state.project.parts)
+      loadPartSamples()
+    }
     if (state.project.masterVolume !== prev.project.masterVolume) {
       audioEngine.setMasterVolume(state.project.masterVolume)
     }
@@ -208,6 +269,18 @@ export function runAction(action: AppAction): void {
       requestPattern(neighbourPatternId(store.project, from, action.offset))
       break
     }
+    case 'stepSound':
+      stepSample(action.offset)
+      break
+    case 'pickSound':
+      pickSampleAt(action.value)
+      break
+    case 'setSampleStart':
+      store.updateSample(action.part, { start: action.value })
+      break
+    case 'setSampleEnd':
+      store.updateSample(action.part, { end: action.value })
+      break
     case 'duplicatePattern':
       store.duplicatePattern()
       transportStore.setState({ queuedPatternId: null })
@@ -276,4 +349,16 @@ async function restoreModes(): Promise<void> {
       void preferences.set(PREF_CONTROL_MODES, { padMode: state.padMode, keyMode: state.keyMode })
     }
   })
+}
+
+/** Make sure every user sample referenced by a part is loaded (missing files get flagged). */
+function loadPartSamples(): void {
+  for (const part of projectStore.getState().project.parts) {
+    if (part.sound.kind === 'sample' && part.sound.sample?.origin === 'user') {
+      const status = sampleStore.getState().status[part.sound.sample.id]?.state
+      if (status !== 'missing' && status !== 'error') {
+        void sampleLibrary.ensureLoaded(part.sound.sample)
+      }
+    }
+  }
 }
