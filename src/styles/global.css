@@ -204,3 +204,194 @@ select:focus-visible {
 .statusbar .muted {
   margin-left: auto;
 }
+
+/* ---- View tabs ---- */
+.view-tabs {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+.view-tabs button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #111;
+  font-weight: 600;
+}
+
+/* ---- Status bar MIDI indicator ---- */
+.midi-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555;
+}
+.dot.ok {
+  background: #46d160;
+  box-shadow: 0 0 6px #46d160;
+}
+.dot.warn {
+  background: #e3b341;
+}
+
+/* ---- MIDI setup ---- */
+.midi-setup {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  grid-template-areas: 'device monitor' 'learn monitor';
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  height: 100%;
+}
+.midi-setup .panel:nth-child(1) {
+  grid-area: device;
+}
+.midi-setup .learn-panel {
+  grid-area: learn;
+}
+.midi-setup .monitor-panel {
+  grid-area: monitor;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.panel h3 {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.panel-head h2 {
+  margin-right: auto;
+}
+.panel select {
+  min-width: 280px;
+}
+.panel p {
+  font-size: 13px;
+  margin: 8px 0;
+}
+.muted {
+  color: var(--muted);
+}
+.warn {
+  color: #e3b341;
+}
+
+.learn-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 20px;
+}
+.learn-group:last-child {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+}
+.learn-group:last-child h3 {
+  grid-column: 1 / -1;
+}
+.learn-row {
+  display: grid;
+  grid-template-columns: 10px 76px minmax(0, 1fr) 64px auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.learn-row button {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.learn-row.learning {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.learn-row.learning .learn-binding {
+  grid-column: span 2;
+  color: var(--accent);
+  font-weight: 600;
+}
+.learn-binding {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.learn-value {
+  font-size: 11px;
+  text-align: right;
+  min-height: 18px;
+}
+.learn-value:empty {
+  background: none;
+}
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #333;
+}
+.led.flash {
+  animation: led-flash 250ms ease-out;
+}
+@keyframes led-flash {
+  from {
+    background: #7dff9a;
+    box-shadow: 0 0 8px #7dff9a;
+  }
+  to {
+    background: #333;
+  }
+}
+
+.monitor-log {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 200px;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+.monitor-log li {
+  display: flex;
+  gap: 10px;
+  padding: 2px 0;
+  border-bottom: 1px solid #26262c;
+  white-space: pre;
+}
+.monitor-log .tag {
+  margin-left: auto;
+  color: var(--lcd-fg);
+}

@@ -445,8 +445,34 @@ the next. Do not implement the entire product in one giant change.
   `npm run build` pass; built app and `npm run dev` both open the window.
 - Known limitations: no sound, no MIDI, no persistence yet; the step grid
   edits in-memory data only. Not yet packaged as a `.app`.
-- **Next:** Milestone 1 --- list MIDI inputs and show a live MIDI
-  monitor (requires granting the `midi` permission in the main process).
+
+**Milestone 1 --- implemented, awaiting hardware sign-off (2026-11-06).**
+
+- `src/midi/messages.ts`: raw bytes to typed events (note on/off with
+  velocity-0 note-off, CC, 14-bit pitch bend, program, pressure, system).
+- `src/midi/MidiManager.ts`: Web MIDI access, input list, select input,
+  remembers the device by name, detaches on unplug and reattaches on
+  replug. Auto-picks an input named "MPK" only when no device was chosen.
+- `src/midi/mapping.ts` + `MidiController.ts`: MIDI Learn for Pads 1--8,
+  Knobs 1--8, Joystick X/Y, and Keyboard (channel). Bindings come only from
+  received messages; a control can drive one target; pad notes win over the
+  keyboard channel. Mappings and device are saved to `preferences.json` in
+  the app's userData folder via IPC.
+- MIDI Setup view: device selector, learn table with activity LEDs and
+  last values, live monitor (clock/realtime hidden by default). Status bar
+  shows connection state.
+- Electron grants `midi` and `midiSysex` to the app's own pages only
+  (Chromium requests `midiSysex` even for `sysex: false`); the renderer
+  gets `sysexEnabled=false` and opens no outputs.
+- Verified: 39 unit tests (fake MIDI device for unplug/replug), build, and
+  the real app detects a connected "MPK mini 3". Pressing pads, turning
+  knobs, and replugging were **not** tested on hardware yet.
+- Known limitations: learned controls only light LEDs; they do not
+  control parts yet (pad modes are Milestone 4, knob parameters
+  Milestone 6). No per-part knob mappings yet. Running-status MIDI bytes
+  are ignored.
+- **Next:** Milestone 2 --- independent audio engine with eight parts,
+  sample playback, one synth voice, and panic.
 
 ### Milestone 0 --- Project foundation
 

@@ -1,4 +1,4 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
 /**
  * Minimal, explicit bridge between the sandboxed renderer and the host.
@@ -9,6 +9,11 @@ const api = {
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
+  },
+  prefs: {
+    get: (key: string): Promise<unknown> => ipcRenderer.invoke('prefs:get', key),
+    set: (key: string, value: unknown): Promise<void> =>
+      ipcRenderer.invoke('prefs:set', key, value),
   },
 } as const
 
