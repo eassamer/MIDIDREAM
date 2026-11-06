@@ -222,3 +222,57 @@ export function updatePart(project: Project, part: PartIndex, patch: PartPatch):
 export function setMasterVolume(project: Project, volume: number): Project {
   return { ...project, masterVolume: clamp(volume, 0, 1) }
 }
+
+export const MIN_BPM = 20
+export const MAX_BPM = 300
+
+/** Set tempo, clamped to 20..300 and rounded to 0.1 BPM. */
+export function setBpm(project: Project, bpm: number): Project {
+  if (!Number.isFinite(bpm)) return project
+  return { ...project, bpm: Math.round(clamp(bpm, MIN_BPM, MAX_BPM) * 10) / 10 }
+}
+
+/** Set one step's velocity (0..1). Turning velocity up does not activate the step. */
+export function setStepVelocity(
+  project: Project,
+  patternId: string,
+  part: PartIndex,
+  stepIndex: number,
+  velocity: number,
+): Project {
+  return updatePattern(project, patternId, (pattern) => {
+    const track = pattern.tracks[part]!
+    const step = track.steps[stepIndex]
+    if (!step) return pattern
+    const steps = track.steps.slice()
+    steps[stepIndex] = { ...step, velocity: clamp(velocity, 0.05, 1) }
+    const tracks = pattern.tracks.slice()
+    tracks[part] = { steps }
+    return { ...pattern, tracks }
+  })
+}
+
+/** Clear every part's steps in a pattern (length is kept). */
+export function clearPattern(project: Project, patternId: string): Project {
+  return updatePattern(project, patternId, (pattern) => ({
+    ...pattern,
+    tracks: pattern.tracks.map(() => createTrack(pattern.lengthBars)),
+  }))
+}
+
+/**
+ * Double a pattern's length by repeating its content (1 -> 2 -> 4 -> 8 -> 16
+ * bars). No-op when the result would exceed 16 bars.
+ */
+export function doublePattern(project: Project, patternId: string): Project {
+  return updatePattern(project, patternId, (pattern) => {
+    if (pattern.lengthBars * 2 > MAX_PATTERN_BARS) return pattern
+    return {
+      ...pattern,
+      lengthBars: pattern.lengthBars * 2,
+      tracks: pattern.tracks.map((t) => ({
+        steps: [...t.steps, ...t.steps.map((s) => ({ ...s, notes: [...s.notes] }))],
+      })),
+    }
+  })
+}

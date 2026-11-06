@@ -1,7 +1,11 @@
 import { createStore } from 'zustand/vanilla'
 import {
+  clearPattern,
   clearTrack,
   createProject,
+  doublePattern,
+  setBpm,
+  setStepVelocity,
   getActivePattern,
   setMasterVolume,
   setPartMute,
@@ -33,6 +37,10 @@ export interface ProjectState {
   toggleSolo: (part: PartIndex) => void
   updatePart: (part: PartIndex, patch: PartPatch) => void
   setMasterVolume: (volume: number) => void
+  setBpm: (bpm: number) => void
+  setStepVelocity: (part: PartIndex, stepIndex: number, velocity: number) => void
+  clearPattern: () => void
+  doublePattern: () => void
 }
 
 export function createProjectStore(initial: Project = createProject()) {
@@ -72,6 +80,21 @@ export function createProjectStore(initial: Project = createProject()) {
     },
     updatePart: (part, patch) => set({ project: updatePart(get().project, part, patch) }),
     setMasterVolume: (volume) => set({ project: setMasterVolume(get().project, volume) }),
+    setBpm: (bpm) => set({ project: setBpm(get().project, bpm) }),
+    setStepVelocity: (part, stepIndex, velocity) => {
+      const { project } = get()
+      set({
+        project: setStepVelocity(project, project.activePatternId, part, stepIndex, velocity),
+      })
+    },
+    clearPattern: () => {
+      const { project } = get()
+      set({ project: clearPattern(project, project.activePatternId) })
+    },
+    doublePattern: () => {
+      const { project } = get()
+      set({ project: doublePattern(project, project.activePatternId) })
+    },
   }))
 }
 

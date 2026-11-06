@@ -44,6 +44,8 @@ interface Voice {
   release: (when: number, fast: boolean) => void
   /** playing -> releasing (envelope tail) -> stopped (cut or ended). */
   state: 'playing' | 'releasing' | 'stopped'
+  /** Audio time the voice starts. */
+  startedAt: number
 }
 
 interface PartChannel {
@@ -165,8 +167,16 @@ export class AudioEngine implements AudioEngineApi {
    * Start a voice. `velocity` is MIDI 1..127. `note` is a MIDI note for
    * pitched parts (defaults per part); for sample parts it transposes
    * relative to C3 (60). `when` is an AudioContext time (defaults to now).
+   * With `duration`, the note is released automatically after that many
+   * seconds (sequencer notes); without it, it is held until `release()`.
    */
-  trigger(partIndex: PartIndex, velocity: number, note?: number, when?: number): void {
+  trigger(
+    partIndex: PartIndex,
+    velocity: number,
+    note?: number,
+    when?: number,
+    duration?: number,
+  ): void {
     const ctx = this.ctx
     const part = this.parts[partIndex]
     const channel = this.channels[partIndex]
@@ -189,6 +199,7 @@ export class AudioEngine implements AudioEngineApi {
     if (!voice) return
 
     channel.voices.push(voice)
+    if (duration !== undefined) voice.release(t + Math.max(0.005, duration), false)
     // Voice stealing: drop the oldest voice when a part gets too busy.
     while (channel.voices.length > MAX_VOICES_PER_PART) {
       channel.voices.shift()!.release(t, true)
@@ -204,6 +215,31 @@ export class AudioEngine implements AudioEngineApi {
     for (const v of channel.voices) {
       if (note === undefined || v.note === note) v.release(t, false)
     }
+  }
+
+  /**
+   * Silence voices scheduled to start after `time` (sequencer stop). Notes
+   * already sounding are left to finish.
+   */
+  cancelAfter(time: number): void {
+    for (const channel of this.channels) {
+      const pending = channel.voices.filter((v) => v.startedAt > time)
+      for (const v of pending) v.release(time, true)
+      channel.voices = channel.voices.filter((v) => v.startedAt <= time)
+    }
+  }
+
+  /** Current audio clock time in seconds (0 before start). */
+  now(): number {
+    return this.ctx?.currentTime ?? 0
+  }
+
+  /**
+   * Seconds between scheduling a sound at `currentTime` and hearing it.
+   * Used to line the playhead up with what is audible.
+   */
+  outputDelay(): number {
+    return (this.stats.baseLatency ?? 0) + (this.stats.outputLatency ?? 0)
   }
 
   /** Release every held voice on every part (e.g. MIDI device unplugged). */
@@ -422,6 +458,7 @@ export class AudioEngine implements AudioEngineApi {
       part,
       note,
       state: 'playing',
+      startedAt,
       release: (when, fast) => {
         // A fast cut may shorten a slow release tail; nothing else repeats.
         if (voice.state === 'stopped' || (voice.state === 'releasing' && !fast)) return

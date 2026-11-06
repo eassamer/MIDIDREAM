@@ -19,6 +19,9 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Keep the sequencer's scheduler timer running at full rate when the
+      // window is in the background (timing itself uses the audio clock).
+      backgroundThrottling: false,
     },
   })
 

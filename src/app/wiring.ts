@@ -4,7 +4,10 @@ import type { MidiEvent } from '../midi/messages'
 import type { PartIndex } from '../project/types'
 import { audioStore } from '../state/audioStore'
 import { midiStore } from '../state/midiStore'
+import { getActivePattern } from '../project/ProjectModel'
 import { projectStore } from '../state/projectStore'
+import { transportStore } from '../state/transportStore'
+import { Sequencer } from '../sequencer/Sequencer'
 import { midiController } from '../state/useMidiStore'
 
 /**
@@ -12,6 +15,26 @@ import { midiController } from '../state/useMidiStore'
  * learned MIDI controls -> app actions. No React here.
  */
 export const audioEngine = new AudioEngine()
+
+export const sequencer = new Sequencer(
+  { now: () => audioEngine.now() },
+  {
+    getPattern: () => getActivePattern(projectStore.getState().project),
+    getBpm: () => projectStore.getState().project.bpm,
+  },
+  {
+    playNote: (part, velocity, note, when, duration) =>
+      audioEngine.trigger(part, velocity, note, when, duration),
+    cancelAfter: (time) => audioEngine.cancelAfter(time),
+    releaseAll: () => audioEngine.releaseAll(),
+  },
+)
+
+/** Start or stop playback (resuming audio first if it was suspended). */
+export function togglePlay(): void {
+  if (!sequencer.isPlaying) void audioEngine.resume()
+  sequencer.toggle()
+}
 
 /** Keyboard notes currently held, and which part each one started on. */
 const heldKeys = new Map<number, PartIndex>()
@@ -43,6 +66,13 @@ export function startApp(): void {
     }
   })
 
+  // Transport state -> UI, and a visual-only playhead that follows the audio
+  // clock (offset by output latency so it matches what you hear).
+  sequencer.onPlayingChange((playing) => {
+    transportStore.setState({ playing, playheadStep: null })
+    if (playing) requestAnimationFrame(followPlayhead)
+  })
+
   // If the OS or runtime suspended audio, any click brings it back.
   window.addEventListener('pointerdown', () => {
     if (audioEngine.getStats().status === 'suspended') void audioEngine.resume()
@@ -54,7 +84,7 @@ function padPart(target: LearnTargetId): PartIndex | null {
   return m ? ((Number(m[1]) - 1) as PartIndex) : null
 }
 
-/** Performance routing for Milestone 2: pads trigger parts, keys play the selected part. */
+/** Performance routing: pads trigger parts, keys play the selected part. */
 function routeControl(targets: LearnTargetId[], e: MidiEvent): void {
   for (const target of targets) {
     const part = padPart(target)
@@ -80,4 +110,14 @@ function routeControl(targets: LearnTargetId[], e: MidiEvent): void {
       }
     }
   }
+}
+
+function followPlayhead(): void {
+  if (!sequencer.isPlaying) return
+  const heard = sequencer.stepAt(audioEngine.now() - audioEngine.outputDelay())
+  const step = heard?.step ?? null
+  if (transportStore.getState().playheadStep !== step) {
+    transportStore.setState({ playheadStep: step })
+  }
+  requestAnimationFrame(followPlayhead)
 }

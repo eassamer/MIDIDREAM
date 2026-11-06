@@ -181,3 +181,26 @@ describe('AudioEngine', () => {
     expect(engine.readPeak()).toBeCloseTo(0.25)
   })
 })
+
+describe('AudioEngine sequenced notes', () => {
+  it('releases a timed synth note after its duration', () => {
+    const { ctx, engine } = setup()
+    engine.trigger(BASS, 100, 40, 1, 0.25)
+    const osc = ctx.sources[0] as FakeOscillator
+    expect(osc.startedAt).toBe(1)
+    // release starts at 1.25 and lasts the part's release time (0.1 s)
+    expect(osc.stoppedAt).toBeCloseTo(1.25 + 0.1 + 0.01)
+  })
+
+  it('cancelAfter silences voices scheduled in the future but not ones already playing', () => {
+    const { ctx, engine } = setup()
+    ctx.currentTime = 1
+    engine.trigger(KICK, 100, undefined, 1.0)
+    engine.trigger(KICK, 100, undefined, 1.3)
+    engine.cancelAfter(1.1)
+    const [now, later] = ctx.sources
+    expect(now!.stoppedAt).toBeNull()
+    expect(later!.stoppedAt).not.toBeNull()
+    expect(engine.activeVoices(KICK)).toBe(1)
+  })
+})

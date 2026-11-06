@@ -564,3 +564,108 @@ select:focus-visible {
     display: none;
   }
 }
+
+/* ---- Transport: play, BPM, tap ---- */
+.play {
+  min-width: 84px;
+  font-weight: 700;
+}
+.play.on {
+  background: #46d160;
+  border-color: #46d160;
+  color: #111;
+}
+.bpm {
+  width: 64px;
+  border: 1px solid transparent;
+  text-align: center;
+  font-size: 15px;
+  outline: none;
+}
+.bpm:focus {
+  border-color: var(--lcd-fg);
+}
+.tap {
+  padding: 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  margin-right: 10px;
+}
+.tap.flash {
+  background: var(--lcd-fg);
+  color: #111;
+}
+
+/* ---- Playhead and velocity lane ---- */
+.step.playhead {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.step.playhead:not(.on) {
+  background: #3a3a44;
+}
+.playing-bar {
+  font-size: 12px;
+  margin-left: 4px;
+}
+.velocity-lane {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 6px;
+  height: 56px;
+  margin-top: 10px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.vel-cell {
+  position: relative;
+  background: #1b1b20;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+.vel-bar {
+  width: 100%;
+  background: #3a3a44;
+  pointer-events: none;
+}
+.vel-cell.on .vel-bar {
+  background: var(--part-color);
+}
+
+/* ---- Transport: keep everything on one row without overflowing ---- */
+.app {
+  min-width: 0;
+  overflow: hidden;
+}
+.transport {
+  gap: 14px;
+  padding: 10px 16px;
+  min-width: 0;
+}
+.transport .value {
+  margin-right: 0;
+}
+.transport-info {
+  gap: 8px;
+}
+.master {
+  gap: 10px;
+}
+.master .control.compact input[type='range'] {
+  width: 80px;
+}
+.meter-track {
+  width: 80px;
+  background-size: 80px 100%;
+}
+.meter-bar {
+  background-size: 80px 100%;
+}
+@media (max-width: 1100px) {
+  .master .label,
+  .brand {
+    display: none;
+  }
+}

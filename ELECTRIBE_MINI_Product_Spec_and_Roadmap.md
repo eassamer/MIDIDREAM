@@ -131,6 +131,11 @@ normal use.
 
 The MPK Mini is the primary performance controller.
 
+> **MIDI-first rule (added 2026-11-06):** every music-making action must
+> be reachable from the MPK through MIDI Learn. The mouse UI is a
+> secondary way in and the place for visual feedback (modes, playhead,
+> values). A feature is not done if it only works with the mouse.
+
 ### Pad modes
 
 Provide switchable pad modes:
@@ -504,6 +509,40 @@ the next. Do not implement the entire product in one giant change.
 - **Next:** Milestone 3 --- 16-step sequencer with audio-clock
   scheduling, transport, BPM, and playhead.
 
+**Milestone 3 --- implemented (2026-11-06).**
+
+- `src/sequencer/Sequencer.ts`: lookahead scheduler. A 25 ms timer only
+  wakes it; every note is placed on the AudioContext clock up to 120 ms
+  ahead. Reads the pattern and BPM on every tick, so step edits and tempo
+  changes apply to the next unscheduled step. Loops at the pattern length
+  (1--16 bars), restarts from step 1 on Play, skips (rather than bursts)
+  steps missed during a stall. Clock, pattern source, and note output are
+  injected, so timing is unit-tested without audio.
+- Engine: notes with a duration (gate) release themselves; `cancelAfter`
+  silences notes scheduled but not yet started, so Stop never lets a
+  queued note through. Stop also releases held notes.
+- Playhead follows the audio clock minus reported output latency (visual
+  only; it does not drive timing).
+- UI: Play/Stop (Space), editable BPM (type, arrows, Shift = ±10), tap
+  tempo, playhead highlight and "playing bar" indicator, velocity lane
+  (drag to draw, double-click resets), step brightness by velocity,
+  Clear part, Clear pattern, Double (repeat bars to double the length).
+- Electron `backgroundThrottling` is off so the scheduler keeps waking
+  when the window is in the background.
+- Verified: 70 unit tests (exact step times, 100-bar loop with no drift,
+  multi-bar length, edits and tempo changes mid-play, stop/cancel, stall
+  skipping, playhead lookup); in the real app at 120 BPM the playhead
+  advanced every 125.0 ms on average (expected 125 ms, about ±1 ms frame
+  jitter), Stop cleared it, no console errors; no horizontal overflow at
+  1280 or 960 px. Audible timing was not judged by me.
+- Known limitations: swing, probability, ratchets, accent, microtiming,
+  and pattern switching are Milestone 4; the grid does not auto-follow the
+  playing bar; steps cannot be entered from the MPK yet.
+- **Next:** Milestone 3.5 --- MIDI-first control (operate transport,
+  modes, step entry, and part sound from the MPK; see below). Planned,
+  not started. A first draft of the router was written then set aside on
+  request so it can be built in its own milestone.
+
 ### Milestone 0 --- Project foundation
 
 **Goal:** Establish a maintainable app structure.
@@ -558,19 +597,76 @@ playhead stays aligned with audio. - Editing steps during playback does
 not crash or corrupt the pattern. - Stopping playback clears scheduled
 events safely.
 
+### Milestone 3.5 --- MIDI-first control
+
+**Goal:** Run everything built so far from the MPK mini 3 without
+touching the mouse. Everything below is MIDI-learned; no note or CC
+numbers are assumed.
+
+Control layout (agreed 2026-11-06, "mix of both" + "keys as steps"):
+
+  Control               Default job
+  --------------------- ---------------------------------------------
+  Pads, Bank A (1--8)   The 8 parts, behaviour set by pad mode
+  Pad mode              Trigger (play) / Mute / Select part
+  Bank B pads / keys    Function buttons (learnable, see below)
+  16 step keys          In Step mode: toggle steps 1--16 of the
+                        selected part on the visible bar
+  Remaining keys        Play the selected part (Play mode)
+  Knobs K1--K8          Each has a selectable job (see below)
+
+Function buttons (each learnable to any pad or key): Play/Stop, Stop all
+sound, Pad mode (cycle Trigger → Mute → Select), Keys mode (Play notes ↔
+Step entry), Bar −, Bar +, Clear part.
+
+Default knob jobs (changeable per knob, saved in preferences): K1 part
+volume, K2 part pan, K3 part pitch, K4 none, K5 none, K6 pad mode
+(three zones), K7 tempo (60--200 BPM), K8 master volume. Filter and
+envelope jobs join this list in Milestone 6.
+
+Tasks:
+- Extend MIDI Learn with function buttons, a "step keys" range (learn
+  the key for step 1; the next 15 keys follow), and per-knob jobs.
+- Pure, unit-tested router: (learned control, message, current modes)
+  -> app actions; the app executes them. Specific controls win over the
+  step-key range, which wins over the keyboard channel.
+- Pad modes Trigger / Mute / Select (moved here from Milestone 4).
+- Keys mode Play / Step. In Step mode, key velocity becomes the step
+  velocity and the step is auditioned when the sequencer is stopped.
+- On-screen feedback: current pad mode and keys mode always visible;
+  step numbers show which key plays them; knob job and value shown in
+  the MIDI view.
+- Learn table grouped as Pads, Knobs (with job selector), Buttons, Step
+  keys, Joystick & keyboard.
+
+**Acceptance checks:**
+- With the mouse unplugged, the user can: start/stop, switch pad and
+  keys modes, select a part, program a 1-bar beat with the keys, move
+  between bars, mute parts from the pads, change tempo, part volume,
+  pan and pitch from knobs, and stop all sound.
+- Mappings and knob jobs survive a restart.
+- No stuck notes when switching keys mode or pad mode while holding
+  notes.
+
+**Known constraints:** the MPK's octave buttons shift the notes the keys
+send, so step keys must be relearned (or the octave reset) after
+shifting. Absolute knobs jump the parameter to the knob position when
+you switch parts (no soft takeover yet).
+
 ### Milestone 4 --- Multi-bar patterns and performance control
 
 **Goal:** Extend the sequencer into a useful groovebox.
 
 Tasks: - Add pattern lengths from 1 to 16 bars. - Add bar navigation. -
-Implement MPK pad Part Mute mode and Part Select mode. - Add swing,
+(Pad Mute/Select modes moved to Milestone 3.5.) - Add swing,
 probability, ratchets, accent, and microtiming. - Add pattern
 duplication and switching.
 
 **Acceptance checks:** - A multi-bar pattern loops for the correct
 length. - Multiple parts can be muted simultaneously from pads. - Pad
 mappings are user-configurable. - Timing features behave consistently at
-different tempos.
+different tempos. - Every new feature here (swing, probability, pattern
+switching, ...) has a MIDI-learnable control (MIDI-first rule).
 
 ### Milestone 5 --- Sample browser and editor
 
